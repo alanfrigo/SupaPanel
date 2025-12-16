@@ -1,10 +1,15 @@
-# SupaPanel
+<div align="center">
+  <img src="public/logo.png" alt="SupaPanel Logo" width="120" />
+  <h1>SupaPanel</h1>
+  <p><strong>Open-source management panel for self-hosted Supabase instances</strong></p>
 
-**Open-source management panel for self-hosted Supabase instances**
+  [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+  [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://hub.docker.com)
+  [![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org)
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://hub.docker.com)
-[![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org)
+  <br />
+  <img src="public/demo.png" alt="SupaPanel Demo" width="100%" />
+</div>
 
 SupaPanel is a web-based control panel that simplifies the deployment and management of multiple self-hosted Supabase projects. Deploy your own Supabase infrastructure on any Linux server with a single command.
 
@@ -131,10 +136,63 @@ npm run dev
 
 ### Custom Domain Configuration
 
-1. Point your domain DNS A record to the server IP
-2. Navigate to project settings > Domain
+To use a custom domain for your Supabase project, follow these steps:
+
+#### Prerequisites
+
+- A domain you own with access to DNS settings
+- Your SupaPanel server's public IP address
+
+#### Step 1: Configure DNS Records
+
+Add the following DNS records pointing to your server's IP:
+
+| Type | Name | Value |
+|------|------|-------|
+| A | `api.example.com` | `YOUR_SERVER_IP` |
+| A | `studio.api.example.com` | `YOUR_SERVER_IP` |
+
+> **Note:** Replace `api.example.com` with your chosen domain and `YOUR_SERVER_IP` with your server's public IP address.
+
+#### Step 2: Configure Domain in SupaPanel
+
+1. Go to **Dashboard** → Select your project → Click **Configure**
+2. Find the **Custom Domain Configuration** section at the top
 3. Enter your domain (e.g., `api.example.com`)
-4. Traefik automatically provisions SSL certificates
+4. Click **Save Domain**
+
+#### Step 3: Automatic SSL Provisioning
+
+Once DNS is configured:
+- Traefik automatically detects the domain
+- Let's Encrypt issues an SSL certificate
+- HTTPS is enabled automatically (no manual configuration needed)
+
+#### Resulting URLs
+
+After configuration, your Supabase services will be available at:
+
+| Service | URL |
+|---------|-----|
+| **Supabase API** | `https://api.example.com` |
+| **Supabase Studio** | `https://studio.api.example.com` |
+| **PostgREST** | `https://api.example.com/rest/v1` |
+| **Auth** | `https://api.example.com/auth/v1` |
+| **Storage** | `https://api.example.com/storage/v1` |
+| **Realtime** | `wss://api.example.com/realtime/v1` |
+
+### Panel Domain Configuration
+
+You can also set up a custom domain for the SupaPanel dashboard itself:
+
+1. Go to **Dashboard** → Click **Settings** (gear icon in header)
+2. In the **Panel Domain** section, enter your domain (e.g., `panel.example.com`)
+3. Point your domain's DNS A record to this server's IP address
+4. Click **Save Domain**
+
+After configuration:
+- Access your SupaPanel at `https://panel.example.com`
+- Direct IP access (`http://YOUR_IP:3000`) remains available as fallback
 
 ---
 

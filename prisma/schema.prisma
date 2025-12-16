@@ -45,8 +45,10 @@ model Project {
   slug           String   @unique
   description    String?
   status         String   @default("active") // active, paused, stopped
-  domain         String?  // Custom domain for this project
-  domainVerified Boolean  @default(false) // Whether the domain is verified
+  domain         String?  // Custom domain for API (Kong)
+  domainVerified Boolean  @default(false) // Whether the API domain is verified
+  studioDomain   String?  // Custom domain for Supabase Studio
+  studioDomainVerified Boolean @default(false) // Whether the Studio domain is verified
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   
@@ -96,4 +98,14 @@ model PasswordResetToken {
   createdAt DateTime @default(now())
   
   @@map("password_reset_tokens")
+}
+
+model PanelSettings {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("panel_settings")
 }

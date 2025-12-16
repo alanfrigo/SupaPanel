@@ -6,7 +6,7 @@ import { generateProjectTraefikConfig, verifyDomainDNS, getProjectPorts } from '
 
 /**
  * GET /api/projects/[id]/domain
- * Get the domain configuration for a project
+ * Get the domain configuration for a project (API + Studio domains)
  */
 export async function GET(
     request: NextRequest,
@@ -32,6 +32,8 @@ export async function GET(
                 id: true,
                 domain: true,
                 domainVerified: true,
+                studioDomain: true,
+                studioDomainVerified: true,
             },
         })
 
@@ -42,6 +44,8 @@ export async function GET(
         return NextResponse.json({
             domain: project.domain,
             verified: project.domainVerified,
+            studioDomain: project.studioDomain,
+            studioVerified: project.studioDomainVerified,
         })
     } catch (error) {
         console.error('Get domain error:', error)
@@ -51,7 +55,7 @@ export async function GET(
 
 /**
  * PUT /api/projects/[id]/domain
- * Set or update the custom domain for a project
+ * Set or update the custom domains for a project (API and/or Studio)
  */
 export async function PUT(
     request: NextRequest,
@@ -70,16 +74,21 @@ export async function PUT(
         }
 
         const { id } = await params
-        const { domain } = await request.json()
-
-        if (!domain) {
-            return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
-        }
+        const { domain, studioDomain } = await request.json()
 
         // Validate domain format
         const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-_.]*\.[a-zA-Z]{2,}$/
-        if (!domainRegex.test(domain)) {
-            return NextResponse.json({ error: 'Invalid domain format' }, { status: 400 })
+
+        if (domain && !domainRegex.test(domain)) {
+            return NextResponse.json({ error: 'Invalid API domain format' }, { status: 400 })
+        }
+
+        if (studioDomain && !domainRegex.test(studioDomain)) {
+            return NextResponse.json({ error: 'Invalid Studio domain format' }, { status: 400 })
+        }
+
+        if (!domain && !studioDomain) {
+            return NextResponse.json({ error: 'At least one domain is required' }, { status: 400 })
         }
 
         // Check if project exists
@@ -94,28 +103,51 @@ export async function PUT(
             return NextResponse.json({ error: 'Project not found' }, { status: 404 })
         }
 
-        // Check if domain is already in use by another project
-        const existingProject = await prisma.project.findFirst({
-            where: {
-                domain,
-                id: { not: id },
-            },
-        })
-
-        if (existingProject) {
-            return NextResponse.json({ error: 'Domain is already in use' }, { status: 409 })
+        // Check if API domain is already in use by another project
+        if (domain) {
+            const existingApiProject = await prisma.project.findFirst({
+                where: {
+                    domain,
+                    id: { not: id },
+                },
+            })
+            if (existingApiProject) {
+                return NextResponse.json({ error: 'API domain is already in use' }, { status: 409 })
+            }
         }
 
-        // Verify domain DNS points to this server
-        const dnsValid = await verifyDomainDNS(domain)
+        // Check if Studio domain is already in use by another project
+        if (studioDomain) {
+            const existingStudioProject = await prisma.project.findFirst({
+                where: {
+                    studioDomain,
+                    id: { not: id },
+                },
+            })
+            if (existingStudioProject) {
+                return NextResponse.json({ error: 'Studio domain is already in use' }, { status: 409 })
+            }
+        }
 
-        // Update the project's domain
+        // Verify domain DNS
+        const apiDnsValid = domain ? await verifyDomainDNS(domain) : false
+        const studioDnsValid = studioDomain ? await verifyDomainDNS(studioDomain) : false
+
+        // Build update data
+        const updateData: Record<string, unknown> = {}
+        if (domain !== undefined) {
+            updateData.domain = domain || null
+            updateData.domainVerified = domain ? apiDnsValid : false
+        }
+        if (studioDomain !== undefined) {
+            updateData.studioDomain = studioDomain || null
+            updateData.studioDomainVerified = studioDomain ? studioDnsValid : false
+        }
+
+        // Update the project's domains
         const updatedProject = await prisma.project.update({
             where: { id },
-            data: {
-                domain,
-                domainVerified: dnsValid,
-            },
+            data: updateData,
         })
 
         // Generate Traefik configuration for this project
@@ -125,20 +157,40 @@ export async function PUT(
         })
         const ports = getProjectPorts(envVarsMap)
 
-        await generateProjectTraefikConfig({
-            projectSlug: project.slug,
-            domain,
-            kongPort: ports.kongPort,
-            studioPort: ports.studioPort,
-        })
+        // Only generate Traefik config if we have at least one domain
+        const finalDomain = domain || updatedProject.domain
+        const finalStudioDomain = studioDomain || updatedProject.studioDomain
+
+        if (finalDomain || finalStudioDomain) {
+            await generateProjectTraefikConfig({
+                projectSlug: project.slug,
+                domain: finalDomain || '',
+                studioDomain: finalStudioDomain || '',
+                kongPort: ports.kongPort,
+                studioPort: ports.studioPort,
+            })
+        }
+
+        // Build response message
+        const messages: string[] = []
+        if (domain) {
+            messages.push(apiDnsValid
+                ? 'API domain verified'
+                : 'API domain configured (DNS pending)')
+        }
+        if (studioDomain) {
+            messages.push(studioDnsValid
+                ? 'Studio domain verified'
+                : 'Studio domain configured (DNS pending)')
+        }
 
         return NextResponse.json({
             success: true,
             domain: updatedProject.domain,
             verified: updatedProject.domainVerified,
-            message: dnsValid
-                ? 'Domain configured and verified successfully'
-                : 'Domain configured. DNS verification pending - make sure your domain points to this server.',
+            studioDomain: updatedProject.studioDomain,
+            studioVerified: updatedProject.studioDomainVerified,
+            message: messages.join('. ') || 'Domains updated successfully',
         })
     } catch (error) {
         console.error('Set domain error:', error)
@@ -148,7 +200,7 @@ export async function PUT(
 
 /**
  * DELETE /api/projects/[id]/domain
- * Remove the custom domain from a project
+ * Remove the custom domains from a project
  */
 export async function DELETE(
     request: NextRequest,
@@ -176,12 +228,14 @@ export async function DELETE(
             return NextResponse.json({ error: 'Project not found' }, { status: 404 })
         }
 
-        // Update the project (remove domain)
+        // Update the project (remove domains)
         await prisma.project.update({
             where: { id },
             data: {
                 domain: null,
                 domainVerified: false,
+                studioDomain: null,
+                studioDomainVerified: false,
             },
         })
 
@@ -191,7 +245,7 @@ export async function DELETE(
 
         return NextResponse.json({
             success: true,
-            message: 'Domain removed successfully',
+            message: 'Domains removed successfully',
         })
     } catch (error) {
         console.error('Delete domain error:', error)

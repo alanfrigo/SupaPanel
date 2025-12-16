@@ -16,7 +16,7 @@ echo "Running database migrations..."
 # We use db push for now to ensure schema is in sync. 
 # In a strict production environment with existing data, migrate deploy might be safer,
 # but for this self-hosted panel, db push is often preferred to keep it simple.
-npx prisma db push --skip-generate
+npx prisma db push --accept-data-loss
 
 # Execute the main command
 echo "Starting application..."

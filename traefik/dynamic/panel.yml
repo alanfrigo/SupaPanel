@@ -1,0 +1,17 @@
+# Panel Routing Configuration
+# This file is created by the install script and can be customized for panel domain
+
+http:
+  routers:
+    panel-http:
+      rule: "PathPrefix(`/`)"
+      entryPoints:
+        - web
+      service: panel
+      priority: 1
+
+  services:
+    panel:
+      loadBalancer:
+        servers:
+          - url: "http://supapanel-panel:3000"

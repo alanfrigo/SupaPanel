@@ -1,0 +1,32 @@
+# Example Project Routing Configuration
+# This file shows how project-specific routing is generated
+# Real files are created dynamically in /etc/supapanel/traefik/dynamic/
+
+# http:
+#   routers:
+#     myproject-api:
+#       rule: "Host(`myproject.example.com`)"
+#       entryPoints:
+#         - websecure
+#       service: myproject-api
+#       tls:
+#         certResolver: letsencrypt
+#
+#     myproject-studio:
+#       rule: "Host(`studio.myproject.example.com`)"
+#       entryPoints:
+#         - websecure
+#       service: myproject-studio
+#       tls:
+#         certResolver: letsencrypt
+#
+#   services:
+#     myproject-api:
+#       loadBalancer:
+#         servers:
+#           - url: "http://myproject-kong:8000"
+#
+#     myproject-studio:
+#       loadBalancer:
+#         servers:
+#           - url: "http://myproject-studio:3000"

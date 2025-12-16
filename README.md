@@ -24,6 +24,7 @@ SupaPanel is a web-based control panel that simplifies the deployment and manage
 - [Quick Start](#quick-start)
 - [Tech Stack](#tech-stack)
 - [Usage Guide](#usage-guide)
+- [Uninstallation](#uninstallation)
 - [Project Structure](#project-structure)
 - [Configuration](#configuration)
 - [Contributing](#contributing)
@@ -193,6 +194,28 @@ You can also set up a custom domain for the SupaPanel dashboard itself:
 After configuration:
 - Access your SupaPanel at `https://panel.example.com`
 - Direct IP access (`http://YOUR_IP:3000`) remains available as fallback
+
+---
+
+## Uninstallation
+
+To completely remove SupaPanel from your server, follow these steps:
+
+1. **Stop and remove containers**:
+   ```bash
+   cd /etc/supapanel
+   docker compose down -v
+   ```
+
+2. **Remove data directory** (WARNING: This will delete all your projects and data):
+   ```bash
+   sudo rm -rf /etc/supapanel
+   ```
+
+3. **Remove Docker image** (optional):
+   ```bash
+   docker rmi alanmf30/supapanel:latest
+   ```
 
 ---
 

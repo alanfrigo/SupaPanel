@@ -14,6 +14,8 @@ COPY prisma ./prisma/
 RUN npm ci
 
 # Generate Prisma client (needs dummy DATABASE_URL for generation)
+# SECURITY NOTE: This is ONLY for build time to generate client artifacts.
+# It is NOT used in production and does NOT persist to the final image.
 ENV DATABASE_URL="postgresql://user:pass@localhost:5432/db"
 RUN npx prisma generate
 
@@ -31,7 +33,11 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 
 # Install runtime dependencies
+# Added: prisma for migrations
 RUN apk add --no-cache libc6-compat openssl git curl docker-cli
+
+# Install global prisma for the entrypoint script
+RUN npm install -g prisma
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs
@@ -43,6 +49,10 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+
+# Copy entrypoint script
+COPY scripts/docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Set ownership
 RUN chown -R nextjs:nodejs /app
@@ -63,5 +73,6 @@ ENV HOSTNAME="0.0.0.0"
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:3000/api/health || exit 1
 
-# Start the application
+# Start the application using entrypoint
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["node", "server.js"]

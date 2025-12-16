@@ -1,10 +1,15 @@
-# SupaPanel
+<div align="center">
+  <img src="public/logo.png" alt="SupaPanel Logo" width="120" />
+  <h1>SupaPanel</h1>
+  <p><strong>Open-source management panel for self-hosted Supabase instances</strong></p>
 
-**Open-source management panel for self-hosted Supabase instances**
+  [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+  [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://hub.docker.com)
+  [![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org)
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://hub.docker.com)
-[![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org)
+  <br />
+  <img src="public/demo.png" alt="SupaPanel Demo" width="100%" />
+</div>
 
 SupaPanel is a web-based control panel that simplifies the deployment and management of multiple self-hosted Supabase projects. Deploy your own Supabase infrastructure on any Linux server with a single command.
 

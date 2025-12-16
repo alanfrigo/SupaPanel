@@ -44,6 +44,8 @@ next-env.d.ts
 
 # Traefik ACME certificates (production)
 /traefik/acme
+# Traefik dynamic configs (auto-generated)
+/traefik/dynamic/*.yml
 
 .env
 .env.local

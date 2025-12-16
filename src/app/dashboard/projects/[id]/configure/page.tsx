@@ -26,42 +26,42 @@ export default function ConfigureProjectPage({ params }: ConfigureProjectPagePro
     DASHBOARD_PASSWORD: 'this_password_is_insecure_and_should_be_updated',
     SECRET_KEY_BASE: 'UpNVntn3cDxHJpq99YMc1T1AQgQpc8kfYTuRgBiYa15BLrx8etQoXz3gZv1/u2oq',
     VAULT_ENC_KEY: 'your-encryption-key-32-chars-min',
-    
+
     // Database
     POSTGRES_HOST: 'db',
     POSTGRES_DB: 'postgres',
     POSTGRES_PORT: '5432',
-    
+
     // Supavisor
     POOLER_PROXY_PORT_TRANSACTION: '6543',
     POOLER_DEFAULT_POOL_SIZE: '20',
     POOLER_MAX_CLIENT_CONN: '100',
     POOLER_TENANT_ID: 'your-tenant-id',
     POOLER_DB_POOL_SIZE: '5',
-    
+
     // Kong
     KONG_HTTP_PORT: '8000',
     KONG_HTTPS_PORT: '8443',
-    
+
     // Analytics
     ANALYTICS_PORT: '4000',
-    
+
     // PostgREST
     PGRST_DB_SCHEMAS: 'public,storage,graphql_public',
-    
+
     // Auth
     SITE_URL: 'http://localhost:3000',
     ADDITIONAL_REDIRECT_URLS: '',
     JWT_EXPIRY: '3600',
     DISABLE_SIGNUP: 'false',
     API_EXTERNAL_URL: 'http://localhost:8000',
-    
+
     // Mailer
     MAILER_URLPATHS_CONFIRMATION: '/auth/v1/verify',
     MAILER_URLPATHS_INVITE: '/auth/v1/verify',
     MAILER_URLPATHS_RECOVERY: '/auth/v1/verify',
     MAILER_URLPATHS_EMAIL_CHANGE: '/auth/v1/verify',
-    
+
     // Email auth
     ENABLE_EMAIL_SIGNUP: 'true',
     ENABLE_EMAIL_AUTOCONFIRM: 'false',
@@ -72,31 +72,31 @@ export default function ConfigureProjectPage({ params }: ConfigureProjectPagePro
     SMTP_PASS: 'fake_mail_password',
     SMTP_SENDER_NAME: 'fake_sender',
     ENABLE_ANONYMOUS_USERS: 'false',
-    
+
     // Phone auth
     ENABLE_PHONE_SIGNUP: 'true',
     ENABLE_PHONE_AUTOCONFIRM: 'true',
-    
+
     // Studio
     STUDIO_DEFAULT_ORGANIZATION: 'Default Organization',
     STUDIO_DEFAULT_PROJECT: 'Default Project',
     STUDIO_PORT: '3000',
     SUPABASE_PUBLIC_URL: 'http://localhost:8000',
-    
+
     // ImgProxy
     IMGPROXY_ENABLE_WEBP_DETECTION: 'true',
-    
+
     // OpenAI
     OPENAI_API_KEY: '',
-    
+
     // Functions
     FUNCTIONS_VERIFY_JWT: 'false',
-    
+
     // Logs
     LOGFLARE_PUBLIC_ACCESS_TOKEN: 'your-super-secret-and-long-logflare-key-public',
     LOGFLARE_PRIVATE_ACCESS_TOKEN: 'your-super-secret-and-long-logflare-key-private',
     DOCKER_SOCKET_LOCATION: '/var/run/docker.sock',
-    
+
     // Google Cloud
     GOOGLE_PROJECT_ID: 'GOOGLE_PROJECT_ID',
     GOOGLE_PROJECT_NUMBER: 'GOOGLE_PROJECT_NUMBER'
@@ -113,8 +113,18 @@ export default function ConfigureProjectPage({ params }: ConfigureProjectPagePro
     internetConnection: boolean;
   } | null>(null)
   const [checkingSystem, setCheckingSystem] = useState(false)
+
+  // Domain configuration state
+  const [domain, setDomain] = useState('')
+  const [domainVerified, setDomainVerified] = useState(false)
+  const [studioDomain, setStudioDomain] = useState('')
+  const [studioDomainVerified, setStudioDomainVerified] = useState(false)
+  const [domainLoading, setDomainLoading] = useState(false)
+  const [domainError, setDomainError] = useState('')
+  const [domainSuccess, setDomainSuccess] = useState('')
+
   const router = useRouter()
-  
+
   useEffect(() => {
     params.then(({ id }) => setProjectId(id))
   }, [params])
@@ -144,6 +154,32 @@ export default function ConfigureProjectPage({ params }: ConfigureProjectPagePro
     loadEnvVars()
   }, [projectId])
 
+  // Load domain configuration when projectId is available
+  useEffect(() => {
+    if (!projectId) return
+
+    const loadDomain = async () => {
+      try {
+        const response = await fetch(`/api/projects/${projectId}/domain`)
+        if (response.ok) {
+          const data = await response.json()
+          if (data.domain) {
+            setDomain(data.domain)
+            setDomainVerified(data.verified)
+          }
+          if (data.studioDomain) {
+            setStudioDomain(data.studioDomain)
+            setStudioDomainVerified(data.studioVerified)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load domain configuration:', error)
+      }
+    }
+
+    loadDomain()
+  }, [projectId])
+
   const generateSecureKey = (length: number = 32) => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
     let result = ''
@@ -156,7 +192,7 @@ export default function ConfigureProjectPage({ params }: ConfigureProjectPagePro
   const handleGenerateSecrets = () => {
     const jwtSecret = generateSecureKey(64)
     const projectId = `project-${Date.now()}`
-    
+
     setEnvVars(prev => ({
       ...prev,
       POSTGRES_PASSWORD: generateSecureKey(32),
@@ -194,10 +230,106 @@ export default function ConfigureProjectPage({ params }: ConfigureProjectPagePro
     handleInputChange(key, e.target.value)
   }
 
+  const handleSaveDomain = async () => {
+    if (!domain.trim() && !studioDomain.trim()) {
+      setDomainError('Please enter at least one domain')
+      return
+    }
+
+    setDomainLoading(true)
+    setDomainError('')
+    setDomainSuccess('')
+
+    try {
+      const response = await fetch(`/api/projects/${projectId}/domain`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          domain: domain.trim() || null,
+          studioDomain: studioDomain.trim() || null
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setDomainVerified(data.verified)
+        setStudioDomainVerified(data.studioVerified)
+        setDomainSuccess(data.message)
+
+        // Auto-update URL fields when API domain is saved
+        if (domain.trim()) {
+          const apiUrl = `https://${domain.trim()}`
+          setEnvVars(prev => ({
+            ...prev,
+            API_EXTERNAL_URL: apiUrl,
+            // SITE_URL is NOT auto-filled - user's frontend app may be different
+          }))
+        }
+        // Auto-update SUPABASE_PUBLIC_URL from API domain (for Studio to connect)
+        if (domain.trim()) {
+          setEnvVars(prev => ({
+            ...prev,
+            SUPABASE_PUBLIC_URL: `https://${domain.trim()}`,
+          }))
+        }
+      } else {
+        setDomainError(data.error || 'Failed to save domain')
+      }
+    } catch {
+      setDomainError('An error occurred. Please try again.')
+    } finally {
+      setDomainLoading(false)
+    }
+  }
+
+  const applyDomainToUrls = () => {
+    if (!domain.trim()) {
+      setDomainError('API domain is required to apply to URL fields')
+      return
+    }
+    const apiUrl = `https://${domain.trim()}`
+    setEnvVars(prev => ({
+      ...prev,
+      API_EXTERNAL_URL: apiUrl,
+      SUPABASE_PUBLIC_URL: apiUrl,
+    }))
+    setSuccess('URL fields updated. Don\'t forget to save configuration!')
+  }
+
+  const handleRemoveDomain = async () => {
+    setDomainLoading(true)
+    setDomainError('')
+    setDomainSuccess('')
+
+    try {
+      const response = await fetch(`/api/projects/${projectId}/domain`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        setDomain('')
+        setDomainVerified(false)
+        setStudioDomain('')
+        setStudioDomainVerified(false)
+        setDomainSuccess('Domains removed successfully')
+      } else {
+        const data = await response.json()
+        setDomainError(data.error || 'Failed to remove domains')
+      }
+    } catch {
+      setDomainError('An error occurred. Please try again.')
+    } finally {
+      setDomainLoading(false)
+    }
+  }
+
   const handleSystemCheck = async () => {
     setCheckingSystem(true)
     setError('')
-    
+
     try {
       const response = await fetch('/api/system/check')
       if (response.ok) {
@@ -270,10 +402,10 @@ export default function ConfigureProjectPage({ params }: ConfigureProjectPagePro
       <header className="border-b">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <Image 
-              src="/logo.png" 
-              alt="SupaPanel" 
-              width={150} 
+            <Image
+              src="/logo.png"
+              alt="SupaPanel"
+              width={150}
               height={150}
               className="object-contain"
             />
@@ -307,12 +439,151 @@ export default function ConfigureProjectPage({ params }: ConfigureProjectPagePro
 
           <div className="bg-blue-500/10 border border-blue-500/20 text-blue-500 px-4 py-3 rounded mb-6">
             <p className="text-sm">
-              <strong>Important:</strong> The form below is pre-filled with default values from the Supabase configuration template. 
+              <strong>Important:</strong> The form below is pre-filled with default values from the Supabase configuration template.
               You MUST change the default passwords, secrets, and keys before deploying to production for security reasons.
             </p>
           </div>
 
           <div className="space-y-6">
+            {/* Domain Configuration Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle>🌐 Custom Domain Configuration</CardTitle>
+                <CardDescription>
+                  Configure custom domains for your Supabase API and Studio. Traefik will automatically provision SSL certificates via Let&apos;s Encrypt.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {domainSuccess && (
+                    <div className="bg-green-500/10 border border-green-500/20 text-green-500 px-4 py-3 rounded text-sm">
+                      {domainSuccess}
+                    </div>
+                  )}
+
+                  {domainError && (
+                    <div className="bg-red-500/10 border border-red-500/20 text-red-500 px-4 py-3 rounded text-sm">
+                      {domainError}
+                    </div>
+                  )}
+
+                  <div className="bg-blue-500/10 border border-blue-500/20 text-blue-400 px-4 py-3 rounded">
+                    <h4 className="font-medium mb-2">How Custom Domains Work</h4>
+                    <ol className="text-sm space-y-1 list-decimal list-inside">
+                      <li>Point each domain&apos;s DNS A record to this server&apos;s IP address</li>
+                      <li>Enter your domains below (API and Studio can be different)</li>
+                      <li>Traefik will automatically provision SSL certificates for each</li>
+                    </ol>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* API Domain */}
+                    <div className="space-y-2">
+                      <Label htmlFor="api_domain">API Domain (Kong)</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="api_domain"
+                          type="text"
+                          placeholder="api.example.com"
+                          value={domain}
+                          onChange={(e) => setDomain(e.target.value)}
+                        />
+                        {domain && (
+                          <div className={`flex items-center px-3 py-2 rounded text-xs font-medium ${domainVerified
+                            ? 'bg-green-500/10 text-green-500 border border-green-500/20'
+                            : 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'
+                            }`}>
+                            {domainVerified ? '✓' : '⏳'}
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Domain for Supabase API endpoints (PostgREST, Auth, Storage, etc.)
+                      </p>
+                    </div>
+
+                    {/* Studio Domain */}
+                    <div className="space-y-2">
+                      <Label htmlFor="studio_domain">Studio Domain</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="studio_domain"
+                          type="text"
+                          placeholder="studio.example.com"
+                          value={studioDomain}
+                          onChange={(e) => setStudioDomain(e.target.value)}
+                        />
+                        {studioDomain && (
+                          <div className={`flex items-center px-3 py-2 rounded text-xs font-medium ${studioDomainVerified
+                            ? 'bg-green-500/10 text-green-500 border border-green-500/20'
+                            : 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'
+                            }`}>
+                            {studioDomainVerified ? '✓' : '⏳'}
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Domain for Supabase Studio dashboard (can be any domain you choose)
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Generated URLs Preview */}
+                  {(domain || studioDomain) && (
+                    <div className="space-y-2">
+                      <Label>Your URLs</Label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                        {domain && (
+                          <div className="flex items-center gap-2 p-2 bg-gray-800/50 rounded">
+                            <span className="text-muted-foreground">API:</span>
+                            <code className="text-green-400">https://{domain}</code>
+                          </div>
+                        )}
+                        {studioDomain && (
+                          <div className="flex items-center gap-2 p-2 bg-gray-800/50 rounded">
+                            <span className="text-muted-foreground">Studio:</span>
+                            <code className="text-green-400">https://{studioDomain}</code>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <Button
+                      onClick={handleSaveDomain}
+                      disabled={domainLoading || (!domain.trim() && !studioDomain.trim())}
+                      variant="outline"
+                    >
+                      {domainLoading ? 'Saving...' : 'Save Domain'}
+                    </Button>
+                    {domain && (
+                      <Button
+                        onClick={handleRemoveDomain}
+                        disabled={domainLoading}
+                        variant="destructive"
+                      >
+                        Remove Domain
+                      </Button>
+                    )}
+                  </div>
+
+                  {!domainVerified && domain && (
+                    <div className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-4 py-3 rounded text-sm">
+                      <strong>DNS Not Verified:</strong> Make sure your domain&apos;s A record points to this server&apos;s IP address.
+                      DNS propagation can take up to 48 hours.
+                    </div>
+                  )}
+
+                  {domain && (
+                    <div className="bg-green-500/10 border border-green-500/20 text-green-300 px-4 py-3 rounded text-sm">
+                      <strong>Tip:</strong> When you save the domain, the URL fields below (Site URL, API External URL, Supabase Public URL) are automatically updated to use your custom domain.
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Secrets Section */}
             <Card>
               <CardHeader>
@@ -320,7 +591,7 @@ export default function ConfigureProjectPage({ params }: ConfigureProjectPagePro
                 <CardDescription>
                   These are the most critical security settings. Generate new secure values for production use.
                 </CardDescription>
-                <Button 
+                <Button
                   onClick={handleGenerateSecrets}
                   variant="outline"
                   type="button"
@@ -478,7 +749,11 @@ export default function ConfigureProjectPage({ params }: ConfigureProjectPagePro
                       type="text"
                       value={envVars.SITE_URL}
                       onChange={createInputHandler('SITE_URL')}
+                      placeholder="https://your-app.com"
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Your frontend app URL (where users are redirected after auth). This may differ from the API domain.
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="api_external_url">API External URL</Label>
@@ -487,7 +762,11 @@ export default function ConfigureProjectPage({ params }: ConfigureProjectPagePro
                       type="text"
                       value={envVars.API_EXTERNAL_URL}
                       onChange={createInputHandler('API_EXTERNAL_URL')}
+                      placeholder="https://your-domain.com"
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Public URL for Supabase API (Kong). {domain && <span className="text-green-400">Auto-filled from custom domain.</span>}
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="jwt_expiry">JWT Expiry (seconds)</Label>
@@ -623,7 +902,11 @@ export default function ConfigureProjectPage({ params }: ConfigureProjectPagePro
                       type="text"
                       value={envVars.SUPABASE_PUBLIC_URL}
                       onChange={createInputHandler('SUPABASE_PUBLIC_URL')}
+                      placeholder="https://api.example.com"
                     />
+                    <p className="text-xs text-muted-foreground">
+                      URL that Studio uses to connect to the API (should be your <strong>API domain</strong>, not Studio domain). {domain && <span className="text-green-400">Auto-filled from API domain.</span>}
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -699,8 +982,8 @@ export default function ConfigureProjectPage({ params }: ConfigureProjectPagePro
               <CardContent>
                 <div className="space-y-4">
                   <div className="flex gap-4">
-                    <Button 
-                      onClick={handleSaveConfiguration} 
+                    <Button
+                      onClick={handleSaveConfiguration}
                       disabled={loading}
                       variant="outline"
                     >
@@ -709,8 +992,8 @@ export default function ConfigureProjectPage({ params }: ConfigureProjectPagePro
                       </svg>
                       {loading ? 'Saving...' : 'Save Configuration'}
                     </Button>
-                    
-                    <Button 
+
+                    <Button
                       onClick={handleSystemCheck}
                       disabled={checkingSystem}
                       variant="secondary"
@@ -720,9 +1003,9 @@ export default function ConfigureProjectPage({ params }: ConfigureProjectPagePro
                       </svg>
                       {checkingSystem ? 'Checking...' : 'Check System'}
                     </Button>
-                    
-                    <Button 
-                      onClick={handleDeployProject} 
+
+                    <Button
+                      onClick={handleDeployProject}
                       disabled={deploying || !success}
                     >
                       {deploying ? (
@@ -774,7 +1057,7 @@ export default function ConfigureProjectPage({ params }: ConfigureProjectPagePro
                       )}
                     </div>
                   )}
-                  
+
                   {!success && (
                     <p className="text-sm text-muted-foreground">
                       Save configuration first before deploying

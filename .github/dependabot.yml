@@ -22,6 +22,11 @@ updates:
     ignore:
       - dependency-name: "next"
         update-types: ["version-update:semver-major"]
+      # Prisma 7 has breaking changes incompatible with our schema
+      - dependency-name: "prisma"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@prisma/client"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"

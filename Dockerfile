@@ -54,11 +54,13 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY scripts/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# Set ownership
+# Set ownership of app directory
 RUN chown -R nextjs:nodejs /app
 
-# Switch to non-root user
-USER nextjs
+# Note: We run as root because:
+# 1. Docker socket access requires root
+# 2. Mounted volumes (/data/core, /data/projects) are created as root
+# In a more secure setup, you could use rootless Docker or adjust volume permissions
 
 # Expose port
 EXPOSE 3000

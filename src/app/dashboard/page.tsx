@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import ServerMetricsCards from '@/components/dashboard/ServerMetricsCard'
 
 interface Project {
   id: string
@@ -246,6 +247,9 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div>
+            {/* Server Monitoring Cards */}
+            <ServerMetricsCards />
+
             <div className="flex justify-between items-center mb-8">
               <div>
                 <h2 className="text-3xl font-bold">Projects</h2>
@@ -277,27 +281,39 @@ export default function DashboardPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {projects.map((project) => (
-                  <Card key={project.id} className="hover:shadow-lg transition-shadow">
+                  <Card key={project.id} className="relative overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800 border-slate-700/50 hover:border-slate-600/50 transition-all duration-300 hover:shadow-xl hover:shadow-black/20 group">
+                    {/* Glow effect */}
+                    <div
+                      className="absolute inset-0 opacity-0 group-hover:opacity-20 transition-opacity duration-500 pointer-events-none"
+                      style={{
+                        background: `radial-gradient(circle at 30% 30%, #22c55e, transparent 70%)`
+                      }}
+                    />
                     <CardHeader>
                       <div className="flex justify-between items-start">
-                        <CardTitle className="text-lg">{project.name}</CardTitle>
-                        <div className={`px-2 py-1 rounded-full text-xs ${project.status === 'active' ? 'bg-green-100 text-green-800' :
-                            project.status === 'paused' ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-gray-100 text-gray-800'
+                        <CardTitle className="text-lg text-white">{project.name}</CardTitle>
+                        <div className={`px-2.5 py-1 rounded-full text-xs font-medium ${project.status === 'active' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                          project.status === 'paused' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
+                            'bg-slate-500/20 text-slate-400 border border-slate-500/30'
                           }`}>
                           {project.status}
                         </div>
                       </div>
                       {project.description && (
-                        <CardDescription>{project.description}</CardDescription>
+                        <CardDescription className="text-slate-400">{project.description}</CardDescription>
                       )}
                     </CardHeader>
                     <CardContent>
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">
+                        <span className="text-sm text-slate-500 font-mono">
                           {project.slug}
                         </span>
-                        <Button variant="outline" size="sm" onClick={() => handleManageProject(project)}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleManageProject(project)}
+                          className="bg-slate-800/50 border-slate-600/50 text-slate-300 hover:bg-slate-700/50 hover:text-white hover:border-slate-500/50 transition-all"
+                        >
                           <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />

@@ -44,7 +44,10 @@ model Project {
   name           String
   slug           String   @unique
   description    String?
-  status         String   @default("active") // active, paused, stopped
+  status         String   @default("draft") // draft, deploying, running, stopped, failed
+  deployStatus   String?  // Detailed status from Docker: running, exited, restarting, etc.
+  lastDeployAt   DateTime? // Timestamp of last deployment attempt
+  lastDeployError String? // Error message if last deploy failed
   domain         String?  // Custom domain for API (Kong)
   domainVerified Boolean  @default(false) // Whether the API domain is verified
   studioDomain   String?  // Custom domain for Supabase Studio

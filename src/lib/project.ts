@@ -161,6 +161,167 @@ export async function initializeSupabaseCore() {
   }
 }
 
+// Docker container status types
+export interface ContainerStatus {
+  name: string
+  state: 'running' | 'exited' | 'restarting' | 'paused' | 'dead' | 'created' | 'unknown'
+  status: string
+  health?: string
+}
+
+export interface ProjectDockerStatus {
+  status: 'running' | 'stopped' | 'partial' | 'not_deployed' | 'error'
+  containers: ContainerStatus[]
+  runningCount: number
+  totalCount: number
+  error?: string
+}
+
+// Get real-time Docker status for a project
+export async function getProjectDockerStatus(projectSlug: string): Promise<ProjectDockerStatus> {
+  const projectDir = path.join(getProjectsBasePath(), projectSlug, 'docker')
+
+  try {
+    // Check if docker directory exists
+    const dockerDirExists = await fs.access(projectDir).then(() => true).catch(() => false)
+    if (!dockerDirExists) {
+      return {
+        status: 'not_deployed',
+        containers: [],
+        runningCount: 0,
+        totalCount: 0,
+      }
+    }
+
+    // Get container status using docker compose ps
+    const { stdout } = await execAsync('docker compose ps --format json', {
+      cwd: projectDir,
+      timeout: 30000,
+      maxBuffer: 1024 * 1024 * 2
+    })
+
+    if (!stdout.trim()) {
+      return {
+        status: 'not_deployed',
+        containers: [],
+        runningCount: 0,
+        totalCount: 0,
+      }
+    }
+
+    // Parse JSON output (each line is a JSON object)
+    const lines = stdout.trim().split('\n').filter(line => line.trim())
+    const containers: ContainerStatus[] = []
+
+    for (const line of lines) {
+      try {
+        const container = JSON.parse(line)
+        containers.push({
+          name: container.Name || container.Service || 'unknown',
+          state: (container.State?.toLowerCase() || 'unknown') as ContainerStatus['state'],
+          status: container.Status || 'unknown',
+          health: container.Health,
+        })
+      } catch {
+        // Skip malformed JSON lines
+        continue
+      }
+    }
+
+    const runningCount = containers.filter(c => c.state === 'running').length
+    const totalCount = containers.length
+
+    let status: ProjectDockerStatus['status']
+    if (totalCount === 0) {
+      status = 'not_deployed'
+    } else if (runningCount === totalCount) {
+      status = 'running'
+    } else if (runningCount === 0) {
+      status = 'stopped'
+    } else {
+      status = 'partial'
+    }
+
+    return {
+      status,
+      containers,
+      runningCount,
+      totalCount,
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+
+    // If docker compose fails because no containers exist, return not_deployed
+    if (errorMessage.includes('no configuration file') || errorMessage.includes('no such file')) {
+      return {
+        status: 'not_deployed',
+        containers: [],
+        runningCount: 0,
+        totalCount: 0,
+      }
+    }
+
+    return {
+      status: 'error',
+      containers: [],
+      runningCount: 0,
+      totalCount: 0,
+      error: errorMessage,
+    }
+  }
+}
+
+// Get recent container logs for a project
+export async function getProjectContainerLogs(projectSlug: string, tailLines: number = 100): Promise<{ success: boolean; logs?: string; error?: string }> {
+  const projectDir = path.join(getProjectsBasePath(), projectSlug, 'docker')
+
+  try {
+    const { stdout, stderr } = await execAsync(`docker compose logs --tail=${tailLines} --no-color`, {
+      cwd: projectDir,
+      timeout: 30000,
+      maxBuffer: 1024 * 1024 * 5 // 5MB buffer for logs
+    })
+
+    return {
+      success: true,
+      logs: stdout + (stderr ? `\n--- STDERR ---\n${stderr}` : ''),
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
+  }
+}
+
+// Get Studio URL for a project
+export async function getProjectStudioUrl(projectId: string): Promise<string | null> {
+  try {
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      include: { envVars: true },
+    })
+
+    if (!project) return null
+
+    // If custom studio domain is configured and verified, use it
+    if (project.studioDomain && project.studioDomainVerified) {
+      return `https://${project.studioDomain}`
+    }
+
+    // Otherwise, use the KONG_HTTP_PORT from env vars
+    const kongPortVar = project.envVars.find(v => v.key === 'KONG_HTTP_PORT')
+    if (kongPortVar) {
+      return `http://localhost:${kongPortVar.value}`
+    }
+
+    return null
+  } catch (error) {
+    console.error('Failed to get project studio URL:', error)
+    return null
+  }
+}
+
 export async function createProject(name: string, userId: string, description?: string) {
   try {
     // Generate unique slug
@@ -378,6 +539,16 @@ export async function deployProject(projectId: string) {
 
     const projectDir = path.join(getProjectsBasePath(), project.slug, 'docker')
 
+    // Set status to deploying
+    await prisma.project.update({
+      where: { id: projectId },
+      data: {
+        status: 'deploying',
+        lastDeployAt: new Date(),
+        lastDeployError: null,
+      },
+    })
+
     // Run pre-flight checks
     console.log('Running pre-flight checks...')
     const checks = await checkDockerPrerequisites()
@@ -449,16 +620,34 @@ export async function deployProject(projectId: string) {
       console.warn('Could not verify container status, but deployment may have succeeded')
     }
 
-    // Update project status
+    // Update project status to running
     await prisma.project.update({
       where: { id: projectId },
-      data: { status: 'active' },
+      data: {
+        status: 'running',
+        lastDeployError: null,
+      },
     })
 
     return { success: true }
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     console.error('Failed to deploy project:', error)
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+
+    // Save error to database
+    try {
+      await prisma.project.update({
+        where: { id: projectId },
+        data: {
+          status: 'failed',
+          lastDeployError: errorMessage,
+        },
+      })
+    } catch (updateError) {
+      console.error('Failed to update project status:', updateError)
+    }
+
+    return { success: false, error: errorMessage }
   }
 }
 
@@ -480,7 +669,7 @@ export async function pauseProject(projectId: string) {
     // Update project status
     await prisma.project.update({
       where: { id: projectId },
-      data: { status: 'paused' },
+      data: { status: 'stopped' },
     })
 
     return { success: true }

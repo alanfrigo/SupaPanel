@@ -12,12 +12,26 @@ interface Project {
   name: string
   slug: string
   description?: string
-  status: string
+  status: string // draft, deploying, running, stopped, failed
+  deployStatus?: string
+  lastDeployAt?: string
+  lastDeployError?: string
   createdAt: string
+}
+
+interface ProjectStatus {
+  docker: {
+    status: 'running' | 'stopped' | 'partial' | 'not_deployed' | 'error'
+    runningCount: number
+    totalCount: number
+  }
+  studioUrl: string | null
+  lastDeployError?: string
 }
 
 export default function DashboardPage() {
   const [projects, setProjects] = useState<Project[]>([])
+  const [projectStatuses, setProjectStatuses] = useState<Record<string, ProjectStatus>>({})
   const [loading, setLoading] = useState(true)
   const [initializing, setInitializing] = useState(false)
   const [initialized, setInitialized] = useState(false)
@@ -27,6 +41,9 @@ export default function DashboardPage() {
   const [projectUrls, setProjectUrls] = useState<Record<string, string>>({})
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [showLogsModal, setShowLogsModal] = useState(false)
+  const [logsContent, setLogsContent] = useState('')
+  const [loadingLogs, setLoadingLogs] = useState(false)
   const router = useRouter()
 
   const fetchProjects = async () => {
@@ -37,6 +54,8 @@ export default function DashboardPage() {
         setProjects(data.projects)
         if (data.projects.length > 0) {
           setInitialized(true)
+          // Fetch statuses for all projects
+          fetchProjectStatuses(data.projects)
         }
       } else if (response.status === 401) {
         router.push('/auth/login')
@@ -46,6 +65,74 @@ export default function DashboardPage() {
       setError('Failed to load projects')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchProjectStatuses = async (projectList: Project[]) => {
+    const statuses: Record<string, ProjectStatus> = {}
+
+    await Promise.all(
+      projectList.map(async (project) => {
+        try {
+          const response = await fetch(`/api/projects/${project.id}/status`)
+          if (response.ok) {
+            const data = await response.json()
+            statuses[project.id] = {
+              docker: data.docker,
+              studioUrl: data.studioUrl,
+              lastDeployError: data.lastDeployError,
+            }
+          }
+        } catch {
+          // Silently fail for individual status checks
+        }
+      })
+    )
+
+    setProjectStatuses(statuses)
+  }
+
+  const fetchProjectLogs = async (projectId: string) => {
+    setLoadingLogs(true)
+    try {
+      const response = await fetch(`/api/projects/${projectId}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tailLines: 200 }),
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setLogsContent(data.logs || 'No logs available')
+      } else {
+        setLogsContent('Failed to fetch logs')
+      }
+    } catch {
+      setLogsContent('Error fetching logs')
+    } finally {
+      setLoadingLogs(false)
+    }
+  }
+
+  const getStatusBadge = (project: Project) => {
+    const dockerStatus = projectStatuses[project.id]?.docker?.status
+    const status = String(dockerStatus || project.status)
+
+    switch (status) {
+      case 'running':
+        return { bg: 'bg-emerald-500/20', text: 'text-emerald-400', border: 'border-emerald-500/30', label: 'Running', icon: '🟢' }
+      case 'deploying':
+        return { bg: 'bg-amber-500/20', text: 'text-amber-400', border: 'border-amber-500/30', label: 'Deploying...', icon: '🟡', animate: true }
+      case 'draft':
+      case 'not_deployed':
+        return { bg: 'bg-slate-500/20', text: 'text-slate-400', border: 'border-slate-500/30', label: 'Draft', icon: '⚪' }
+      case 'failed':
+      case 'error':
+        return { bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/30', label: 'Failed', icon: '🔴' }
+      case 'stopped':
+      case 'partial':
+        return { bg: 'bg-gray-500/20', text: 'text-gray-400', border: 'border-gray-500/30', label: 'Stopped', icon: '⏹️' }
+      default:
+        return { bg: 'bg-slate-500/20', text: 'text-slate-400', border: 'border-slate-500/30', label: status, icon: '❓' }
     }
   }
 
@@ -292,34 +379,70 @@ export default function DashboardPage() {
                     <CardHeader>
                       <div className="flex justify-between items-start">
                         <CardTitle className="text-lg text-white">{project.name}</CardTitle>
-                        <div className={`px-2.5 py-1 rounded-full text-xs font-medium ${project.status === 'active' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                          project.status === 'paused' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
-                            'bg-slate-500/20 text-slate-400 border border-slate-500/30'
-                          }`}>
-                          {project.status}
-                        </div>
+                        {(() => {
+                          const badge = getStatusBadge(project)
+                          return (
+                            <div
+                              className={`px-2.5 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${badge.bg} ${badge.text} border ${badge.border} ${'animate' in badge && badge.animate ? 'animate-pulse' : ''}`}
+                              onClick={() => {
+                                if (badge.label === 'Failed') {
+                                  fetchProjectLogs(project.id)
+                                  setShowLogsModal(true)
+                                  setSelectedProject(project)
+                                }
+                              }}
+                              style={badge.label === 'Failed' ? { cursor: 'pointer' } : {}}
+                              title={badge.label === 'Failed' ? 'Click to view logs' : ''}
+                            >
+                              <span>{badge.icon}</span>
+                              <span>{badge.label}</span>
+                              {projectStatuses[project.id]?.docker?.totalCount > 0 && (
+                                <span className="ml-1 text-xs opacity-75">
+                                  ({projectStatuses[project.id]?.docker?.runningCount}/{projectStatuses[project.id]?.docker?.totalCount})
+                                </span>
+                              )}
+                            </div>
+                          )
+                        })()}
                       </div>
                       {project.description && (
                         <CardDescription className="text-slate-400">{project.description}</CardDescription>
                       )}
                     </CardHeader>
                     <CardContent>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-slate-500 font-mono">
+                      <div className="flex justify-between items-center gap-2">
+                        <span className="text-sm text-slate-500 font-mono truncate">
                           {project.slug}
                         </span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleManageProject(project)}
-                          className="bg-slate-800/50 border-slate-600/50 text-slate-300 hover:bg-slate-700/50 hover:text-white hover:border-slate-500/50 transition-all"
-                        >
-                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
-                          Manage
-                        </Button>
+                        <div className="flex gap-2">
+                          {/* Studio Quick Access Button */}
+                          {projectStatuses[project.id]?.studioUrl && (
+                            <a
+                              href={projectStatuses[project.id]?.studioUrl || '#'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center px-3 py-1 text-sm rounded-md bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-600/30 hover:text-emerald-300 transition-all"
+                              title="Open Supabase Studio"
+                            >
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                              Studio
+                            </a>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleManageProject(project)}
+                            className="bg-slate-800/50 border-slate-600/50 text-slate-300 hover:bg-slate-700/50 hover:text-white hover:border-slate-500/50 transition-all"
+                          >
+                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            Manage
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -461,6 +584,70 @@ export default function DashboardPage() {
                   )}
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Logs Modal */}
+      {showLogsModal && selectedProject && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-lg max-w-4xl w-full mx-4 max-h-[80vh] flex flex-col">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Container Logs
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {selectedProject.name}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowLogsModal(false)
+                  setLogsContent('')
+                }}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto p-4">
+              {loadingLogs ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="w-6 h-6 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
+                  <span className="ml-2 text-gray-500">Loading logs...</span>
+                </div>
+              ) : (
+                <pre className="text-xs font-mono bg-gray-100 dark:bg-gray-800 p-4 rounded-lg overflow-auto whitespace-pre-wrap text-gray-800 dark:text-gray-200">
+                  {logsContent || 'No logs available'}
+                </pre>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => fetchProjectLogs(selectedProject.id)}
+                disabled={loadingLogs}
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowLogsModal(false)
+                  setLogsContent('')
+                }}
+              >
+                Close
+              </Button>
             </div>
           </div>
         </div>

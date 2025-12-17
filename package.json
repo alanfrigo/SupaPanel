@@ -18,7 +18,7 @@
     "@prisma/client": "^6.19.1",
     "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-slot": "^1.2.3",
-    "@types/bcryptjs": "^2.4.6",
+    "@types/bcryptjs": "^3.0.0",
     "@types/nodemailer": "^7.0.1",
     "bcryptjs": "^3.0.2",
     "class-variance-authority": "^0.7.1",

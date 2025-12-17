@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import ServerMetricsCards from '@/components/dashboard/ServerMetricsCard'
 
 interface Project {
   id: string
@@ -246,6 +247,9 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div>
+            {/* Server Monitoring Cards */}
+            <ServerMetricsCards />
+
             <div className="flex justify-between items-center mb-8">
               <div>
                 <h2 className="text-3xl font-bold">Projects</h2>
@@ -282,8 +286,8 @@ export default function DashboardPage() {
                       <div className="flex justify-between items-start">
                         <CardTitle className="text-lg">{project.name}</CardTitle>
                         <div className={`px-2 py-1 rounded-full text-xs ${project.status === 'active' ? 'bg-green-100 text-green-800' :
-                            project.status === 'paused' ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-gray-100 text-gray-800'
+                          project.status === 'paused' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-gray-100 text-gray-800'
                           }`}>
                           {project.status}
                         </div>

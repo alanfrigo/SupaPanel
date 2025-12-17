@@ -1,5 +1,5 @@
 # CI Workflow - Validates PRs and pushes, builds Docker images for version tags
-# Builds multi-platform images (amd64 + arm64) and pushes to Docker Hub
+# Builds amd64 images and pushes to Docker Hub
 
 name: CI
 
@@ -99,7 +99,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

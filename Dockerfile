@@ -36,8 +36,8 @@ WORKDIR /app
 # Added: prisma for migrations
 RUN apk add --no-cache libc6-compat openssl git curl docker-cli
 
-# Install global prisma for the entrypoint script
-RUN npm install -g prisma
+# Install global prisma for the entrypoint script (pinned to match project version)
+RUN npm install -g prisma@6.19.1
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs

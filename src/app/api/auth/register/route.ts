@@ -58,11 +58,17 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    // Only set secure if actually using HTTPS (not just based on NODE_ENV)
+    // This allows HTTP access via IP:3000 while still being secure over HTTPS
+    const isSecure = request.headers.get('x-forwarded-proto') === 'https' ||
+      request.url.startsWith('https://')
+
     response.cookies.set('session', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isSecure,
       sameSite: 'lax',
       maxAge: 24 * 60 * 60, // 24 hours
+      path: '/',
     })
 
     return response

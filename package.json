@@ -1,6 +1,6 @@
 {
   "name": "supapanel",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Open-source management panel for self-hosted Supabase instances",
   "private": true,
   "scripts": {

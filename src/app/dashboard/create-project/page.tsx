@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -10,6 +10,18 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 export default function CreateProjectPage() {
+  const [companies, setCompanies] = useState<{ id: string; name: string; role: string }[]>([])
+  const [companyId, setCompanyId] = useState('')
+  useEffect(() => {
+    fetch('/api/companies').then(async r => {
+      if (!r.ok) throw new Error('Não foi possível carregar as Companies.')
+      const data = await r.json()
+      const available = data.companies.filter((c: { role: string }) => c.role !== 'viewer')
+      setCompanies(available)
+      const requested = new URLSearchParams(window.location.search).get('companyId')
+      setCompanyId(available.find((c: { id: string }) => c.id === requested)?.id || available[0]?.id || '')
+    }).catch(e => setError(e.message))
+  }, [])
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
@@ -43,7 +55,7 @@ export default function CreateProjectPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name: name.trim(), description: description.trim() }),
+        body: JSON.stringify({ companyId, name: name.trim(), description: description.trim() }),
       })
 
       if (response.ok) {
@@ -74,8 +86,8 @@ export default function CreateProjectPage() {
               className="object-contain"
             />
           </div>
-          <Link href="/dashboard">
-            <Button variant="outline">Voltar às instâncias</Button>
+          <Link href={companyId ? `/dashboard?companyId=${companyId}` : "/dashboard"}>
+            <Button variant="outline">Voltar aos projetos</Button>
           </Link>
         </div>
       </header>
@@ -83,7 +95,7 @@ export default function CreateProjectPage() {
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-2xl mx-auto">
           <div className="mb-8">
-            <h2 className="text-3xl font-bold mb-2">Nova instância</h2>
+            <h2 className="text-3xl font-bold mb-2">Novo projeto</h2>
             <p className="text-muted-foreground">
               Um Supabase completo, com dados e credenciais independentes.
             </p>
@@ -91,13 +103,21 @@ export default function CreateProjectPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Detalhes da instância</CardTitle>
+              <CardTitle>Detalhes do projeto</CardTitle>
               <CardDescription>
                 Escolha um nome. Geramos as credenciais e preparamos os serviços para você.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="company">Company</Label>
+                  <select id="company" required className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={companyId} onChange={e => setCompanyId(e.target.value)}>
+                    {!companies.length && <option value="">Nenhuma Company disponível</option>}
+                    {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <p className="text-sm text-muted-foreground">O projeto começa com a branch main e uma instância independente.</p>
+                </div>
                 {error && (
                   <div className="bg-red-500/10 border border-red-500/20 text-red-500 px-4 py-3 rounded">
                     {error}
@@ -105,7 +125,7 @@ export default function CreateProjectPage() {
                 )}
 
                 <div className="space-y-2">
-                  <Label htmlFor="name">Nome da instância *</Label>
+                  <Label htmlFor="name">Nome do projeto *</Label>
                   <Input
                     id="name"
                     type="text"
@@ -139,10 +159,10 @@ export default function CreateProjectPage() {
                 </div>
 
                 <div className="flex gap-4">
-                  <Button type="submit" disabled={loading}>
-                    {loading ? 'Preparando instância…' : 'Criar instância'}
+                  <Button type="submit" disabled={loading || !companyId}>
+                    {loading ? 'Preparando instância…' : 'Criar projeto'}
                   </Button>
-                  <Link href="/dashboard">
+                  <Link href={companyId ? `/dashboard?companyId=${companyId}` : "/dashboard"}>
                     <Button type="button" variant="outline">
                       Cancelar
                     </Button>

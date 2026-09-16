@@ -1,3 +1,4 @@
+import { adoptLegacyProjects, companyAccess } from '@/lib/companies'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { validateSession } from '@/lib/auth'
@@ -22,8 +23,11 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    await adoptLegacyProjects(session.user.id)
+    const companyId = request.nextUrl.searchParams.get('companyId')
     const projects = await prisma.project.findMany({
-      where: { ownerId: session.user.id },
+      where: { branch: { project: { ...(companyId ? { companyId } : {}), company: companyAccess(session.user.id) } } },
+      include: { branch: { include: { project: { include: { company: { select: { id: true, name: true } } } } } } },
       orderBy: { createdAt: 'desc' },
     })
 
@@ -56,7 +60,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { name, description = '' } = await request.json()
+    const { name, description = '', companyId } = await request.json()
 
     if (typeof name !== 'string' || !name.trim() || name.length > 80 || typeof description !== 'string' || description.length > 500) {
       return NextResponse.json(
@@ -65,7 +69,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const result = await createProject(name, session.user.id, description)
+    if (typeof companyId !== 'string') return NextResponse.json({ error: 'Escolha uma Company.' }, { status: 400 })
+    const company = await prisma.company.findFirst({ where: { id: companyId, ...companyAccess(session.user.id, 'operate') } })
+    if (!company) return NextResponse.json({ error: 'Company não encontrada ou sem permissão.' }, { status: 404 })
+    const result = await createProject(name.trim(), session.user.id, description, companyId)
 
     if (!result.success) {
       return NextResponse.json(

@@ -1,8 +1,8 @@
+import { findInstance } from '@/lib/companies'
 import { updateProjectEnvVars } from '@/lib/project'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { validateSession } from '@/lib/auth'
-import { cookies } from 'next/headers'
 import { generateProjectTraefikConfig, verifyDomainDNS, getProjectPorts } from '@/lib/traefik'
 
 /**
@@ -15,7 +15,7 @@ export async function GET(
 ) {
     try {
         // Validate session
-        const cookieStore = await cookies()
+        const cookieStore = request.cookies
         const sessionToken = cookieStore.get('session')?.value
         if (!sessionToken) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -26,7 +26,7 @@ export async function GET(
         }
 
         const { id } = await params
-        if (!await prisma.project.findFirst({ where: { id, ownerId: session.user.id } })) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+        if (!await findInstance(id, session.user.id)) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
 
         const project = await prisma.project.findUnique({
             where: { id },
@@ -65,7 +65,7 @@ export async function PUT(
 ) {
     try {
         // Validate session
-        const cookieStore = await cookies()
+        const cookieStore = request.cookies
         const sessionToken = cookieStore.get('session')?.value
         if (!sessionToken) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -76,7 +76,7 @@ export async function PUT(
         }
 
         const { id } = await params
-        if (!await prisma.project.findFirst({ where: { id, ownerId: session.user.id } })) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+        if (!await findInstance(id, session.user.id)) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
         const input = await request.json()
         if ((input.domain !== undefined && typeof input.domain !== 'string') || (input.studioDomain !== undefined && typeof input.studioDomain !== 'string')) return NextResponse.json({ error: 'Invalid domains' }, { status: 400 })
         const domain = input.domain?.trim().toLowerCase()
@@ -218,7 +218,7 @@ export async function DELETE(
 ) {
     try {
         // Validate session
-        const cookieStore = await cookies()
+        const cookieStore = request.cookies
         const sessionToken = cookieStore.get('session')?.value
         if (!sessionToken) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -229,7 +229,7 @@ export async function DELETE(
         }
 
         const { id } = await params
-        if (!await prisma.project.findFirst({ where: { id, ownerId: session.user.id } })) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+        if (!await findInstance(id, session.user.id)) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
 
         const project = await prisma.project.findUnique({
             where: { id },

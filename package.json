@@ -13,7 +13,8 @@
     "db:studio": "prisma studio",
     "db:reset": "prisma db push --force-reset",
     "type-check": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "test:database": "bash scripts/test-database-editor.sh"
   },
   "dependencies": {
     "@prisma/client": "^6.19.1",

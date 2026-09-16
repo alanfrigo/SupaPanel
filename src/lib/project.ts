@@ -124,7 +124,7 @@ export async function initializeSupabaseCore() {
   try { return await initialization } finally { initialization = undefined }
 }
 
-export async function createProject(name: string, userId: string, description?: string) {
+export async function createProject(name: string, userId: string, description?: string, companyId?: string) {
   let createdId: string | undefined
   let createdDir: string | undefined
   try {
@@ -142,6 +142,7 @@ export async function createProject(name: string, userId: string, description?: 
         description,
         ownerId: userId,
         status: 'stopped',
+        ...(companyId ? { branch: { create: { name: 'main', project: { create: { name, description, companyId } } } } } : {}),
       },
     })
 
@@ -249,7 +250,11 @@ export async function createProject(name: string, userId: string, description?: 
 
     return { success: true, project }
   } catch (error) {
-    if (createdId) await prisma.project.delete({ where: { id: createdId } }).catch(() => {})
+    if (createdId) await prisma.$transaction(async tx => {
+      const branch = await tx.branch.findUnique({ where: { instanceId: createdId } })
+      await tx.project.delete({ where: { id: createdId } })
+      if (branch) await tx.managedProject.delete({ where: { id: branch.projectId } })
+    }).catch(() => {})
     if (createdDir) await fs.rm(createdDir, { recursive: true, force: true })
     console.error('Failed to create project:', error)
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
@@ -468,8 +473,12 @@ export async function deleteProject(projectId: string) {
       })
 
       // Delete the project itself
-      await prisma.project.delete({
-        where: { id: projectId },
+      await prisma.$transaction(async tx => {
+        const branch = await tx.branch.findUnique({ where: { instanceId: projectId } })
+        await tx.project.delete({ where: { id: projectId } })
+        if (branch && await tx.branch.count({ where: { projectId: branch.projectId } }) === 0) {
+          await tx.managedProject.delete({ where: { id: branch.projectId } })
+        }
       })
     } catch (dbError) {
       console.error('Failed to clean up database records:', dbError)

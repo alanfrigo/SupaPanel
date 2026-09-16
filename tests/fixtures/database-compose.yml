@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: editor-test-only
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U postgres]
+      interval: 1s
+      retries: 30
+  meta:
+    image: supabase/postgres-meta:v0.96.6
+    environment:
+      PG_META_DB_HOST: db
+      PG_META_DB_USER: postgres
+      PG_META_DB_PASSWORD: editor-test-only
+      PG_META_DB_NAME: postgres
+    depends_on:
+      db:
+        condition: service_healthy

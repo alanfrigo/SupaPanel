@@ -24,6 +24,7 @@ import DatabaseConnections from "@/components/dashboard/DatabaseConnections";
 import { Label } from "@/components/ui/label";
 
 type Project = {
+  branch?: { name: string; project: { name: string; company: { id: string; name: string } } };
   name: string;
   description?: string;
   status: string;
@@ -67,6 +68,7 @@ export default function ConfigureProjectPage() {
   }
   useEffect(() => {
     let cancelled = false;
+    setProject(null); setEnv({}); setDirty(false); setError(""); setMessage(""); setRevealed({}); setConfirmation("");
     Promise.all([
       request(`/api/projects/${id}`),
       request(`/api/projects/${id}/env`),
@@ -174,16 +176,22 @@ export default function ConfigureProjectPage() {
       <header className="border-b">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
           <Link
-            href="/dashboard"
+            href={project?.branch ? `/dashboard?companyId=${project.branch.project.company.id}` : "/dashboard"}
             className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft size={16} />
-            Instâncias
+            Projetos
           </Link>
-          <span className="text-sm font-semibold">SupaPanel</span>
+          <Link href={`/dashboard/projects/${id}/database`} className="text-sm font-medium text-primary">Abrir banco de dados</Link>
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-5 py-10">
+        {project?.branch && <nav aria-label="Contexto do projeto" className="mb-6 flex flex-wrap gap-2 text-sm text-muted-foreground">
+          <Link className="hover:text-primary" href={`/dashboard?companyId=${project.branch.project.company.id}`}>{project.branch.project.company.name}</Link>
+          <span>/</span><span>{project.branch.project.name}</span><span>/</span>
+          <span className="font-mono text-primary">{project.branch.name}</span>
+        </nav>}
+
         {error && (
           <div
             role="alert"

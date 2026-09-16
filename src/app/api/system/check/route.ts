@@ -1,3 +1,4 @@
+import { isInstallationAdmin } from '@/lib/companies'
 import { NextRequest, NextResponse } from 'next/server'
 import { validateSession } from '@/lib/auth'
 import { exec } from 'child_process'
@@ -70,6 +71,7 @@ export async function GET(request: NextRequest) {
     }
 
     const session = await validateSession(sessionToken)
+        if (session && !await isInstallationAdmin(session.user.id)) return NextResponse.json({ error: 'Apenas o administrador da instalação pode acessar este recurso.' }, { status: 403 })
     if (!session) {
       return NextResponse.json(
         { error: 'Invalid session' },

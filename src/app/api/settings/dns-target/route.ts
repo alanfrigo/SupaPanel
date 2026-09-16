@@ -1,3 +1,4 @@
+import { isInstallationAdmin } from '@/lib/companies'
 import { NextRequest, NextResponse } from "next/server";
 import { validateSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -8,6 +9,9 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ target: await getDnsTarget() });
 }
 export async function PUT(request: NextRequest) {
+  const session = await validateSession(request.cookies.get("session")?.value || "");
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!await isInstallationAdmin(session.user.id)) return NextResponse.json({ error: "Apenas o administrador da instalação pode alterar o DNS central." }, { status: 403 });
   if (!(await validateSession(request.cookies.get("session")?.value || "")))
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await request.json();

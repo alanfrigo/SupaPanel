@@ -1,4 +1,34 @@
 <div align="center">
+
+## Banco de dados integrado
+
+Abra um projeto para acessar suas tabelas e o editor SQL sem entrar no Studio separado.
+
+![Editor de banco integrado](public/database.png)
+
+- Liste e pesquise tabelas por schema/nome e navegue pelos registros em páginas de 50.
+- Crie tabelas em `public`, com chave primária automática, `created_at` e RLS ativada.
+- Insira, edite e exclua registros pelo formulário. Edição/exclusão exigem chave primária e recusam sobrescrever um registro alterado desde a leitura.
+- Execute uma instrução SQL por vez; instruções não SELECT exigem confirmação. SELECT pode conter funções com efeitos no banco: o editor é uma ferramenta administrativa.
+- O editor SQL exibe até 200 registros e configura timeout de 10 segundos; respostas acima de 2 MB são recusadas. Em erro de transporte, confira o estado antes de repetir uma alteração.
+
+O acesso respeita a Company e usa o serviço `meta` da própria instância via Docker Compose, sem publicar pg-meta ou portas SQL. A instância precisa estar implantada, com `db` e `meta` disponíveis. As operações usam acesso administrativo ao banco, inclusive quando há RLS; viewers não têm acesso ao editor. Constraints, políticas e alterações avançadas de estrutura são feitas pelo SQL nesta versão. Controle manual de transações, COPY, DO e CALL exigem um cliente externo; cancelamento manual e histórico de consultas ainda não estão disponíveis.
+
+## Companies e projetos — desenvolvimento do Studio unificado
+
+O painel agora permite criar várias **Companies**, selecionar seus projetos e gerenciar membros por Company. Cada projeto novo começa com uma branch **main**, com a configuração e as credenciais de sua instância. O contexto Company / projeto / main aparece na configuração.
+
+As instalações existentes são associadas automaticamente a uma Company inicial do proprietário no primeiro acesso. Essa associação altera somente metadados: IDs, nomes Docker, volumes, domínios e segredos existentes são preservados.
+
+- **owner/admin:** gerenciam membros e operam projetos; somente owners gerenciam outros owners. A Company sempre mantém pelo menos um owner.
+- **developer:** cria e opera projetos, incluindo acesso às credenciais.
+- **viewer:** acompanha a visão geral, sem acesso aos dados, segredos ou operações da instância.
+- O primeiro usuário da instalação administra as configurações globais e pode cadastrar novas contas pela tela de membros. Para contas novas, informe uma senha de pelo menos 12 caracteres; não há envio automático de convite por email. Outros gestores adicionam contas já cadastradas.
+
+**Escopo atual:** organização e permissões com branch `main`, editor de tabelas e SQL integrado. Criação de branches adicionais e automação GitHub são próximas entregas; veja a [arquitetura e o escopo](docs/UNIFIED-STUDIO.md).
+
+Ao atualizar, faça backup do banco de metadados do painel e use a imagem construída deste código. O entrypoint aplica a expansão aditiva do schema com `prisma db push`; em desenvolvimento, execute `npm run db:push` e `npm run db:generate`. Não use uma imagem antiga contra o schema novo: versões antigas não aplicam as permissões por Company.
+
   <img src="public/logo.png" alt="SupaPanel" width="120" />
   <h1>SupaPanel</h1>
   <p><strong>Várias instâncias Supabase self-hosted. Um único painel.</strong></p>

@@ -1,3 +1,4 @@
+import { isInstallationAdmin } from '@/lib/companies'
 import { isDokploy } from '@/lib/runtime'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
@@ -18,6 +19,7 @@ export async function GET() {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
         const session = await validateSession(sessionToken)
+        if (session && !await isInstallationAdmin(session.user.id)) return NextResponse.json({ error: 'Apenas o administrador da instalação pode acessar este recurso.' }, { status: 403 })
         if (!session) {
             return NextResponse.json({ error: 'Invalid session' }, { status: 401 })
         }
@@ -56,6 +58,7 @@ export async function PUT(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
         const session = await validateSession(sessionToken)
+        if (session && !await isInstallationAdmin(session.user.id)) return NextResponse.json({ error: 'Apenas o administrador da instalação pode acessar este recurso.' }, { status: 403 })
         if (!session) {
             return NextResponse.json({ error: 'Invalid session' }, { status: 401 })
         }
@@ -120,6 +123,7 @@ export async function DELETE() {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
         const session = await validateSession(sessionToken)
+        if (session && !await isInstallationAdmin(session.user.id)) return NextResponse.json({ error: 'Apenas o administrador da instalação pode acessar este recurso.' }, { status: 403 })
         if (!session) {
             return NextResponse.json({ error: 'Invalid session' }, { status: 401 })
         }

@@ -19,6 +19,7 @@ model User {
   updatedAt DateTime @updatedAt
   
   // Relations
+  memberships CompanyMember[]
   projects  Project[]
   teamMembers TeamMember[]
   sessions  Session[]
@@ -57,6 +58,7 @@ model Project {
   owner       User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   
   // Relations
+  branch      Branch?
   envVars     ProjectEnvVar[]
   
   @@map("projects")
@@ -108,4 +110,57 @@ model PanelSettings {
   updatedAt DateTime @updatedAt
   
   @@map("panel_settings")
+}
+
+// Project above remains the physical instance for compatibility with existing stacks.
+model Company {
+  id String @id @default(uuid())
+  name String
+  legacyOwnerId String? @unique
+  createdAt DateTime @default(now())
+  members CompanyMember[]
+  projects ManagedProject[]
+  @@map("companies")
+}
+
+model CompanyMember {
+  companyId String
+  userId String
+  role CompanyRole @default(developer)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([companyId, userId])
+  @@index([userId])
+  @@map("company_members")
+}
+
+enum CompanyRole {
+  owner
+  admin
+  developer
+  viewer
+}
+
+model ManagedProject {
+  id String @id @default(uuid())
+  name String
+  description String?
+  companyId String
+  createdAt DateTime @default(now())
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  branches Branch[]
+  @@index([companyId])
+  @@map("managed_projects")
+}
+
+model Branch {
+  id String @id @default(uuid())
+  name String @default("main")
+  projectId String
+  instanceId String @unique
+  createdAt DateTime @default(now())
+  project ManagedProject @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  instance Project @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  @@unique([projectId, name])
+  @@map("branches")
 }

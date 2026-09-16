@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -27,6 +27,7 @@ interface Project {
   domain?: string;
   studioDomain?: string;
   createdAt: string;
+  branch?: { name: string; project: { company: { id: string; name: string } } };
 }
 const statuses: Record<string, string> = {
   active: "Em execução",
@@ -36,16 +37,53 @@ const statuses: Record<string, string> = {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const requestVersion = useRef(0);
+  const [companies, setCompanies] = useState<{ id: string; name: string; role: string }[]>([]);
+  const [companyId, setCompanyId] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [creatingCompany, setCreatingCompany] = useState(false);
+  const [companyBusy, setCompanyBusy] = useState(false);
+  const [installationAdmin, setInstallationAdmin] = useState(false);
+  const currentCompany = companies.find(c => c.id === companyId);
+  const canOperate = currentCompany && currentCompany.role !== "viewer";
+  useEffect(() => {
+    fetch("/api/companies").then(async r => {
+      if (r.status === 401) { router.replace("/auth/login"); return; }
+      if (!r.ok) throw new Error("Não foi possível carregar as Companies.");
+      const data = await r.json();
+      setCompanies(data.companies);
+      if (!data.companies.length) setLoading(false);
+      setInstallationAdmin(data.installationAdmin);
+      const requested = new URLSearchParams(window.location.search).get("companyId");
+      setCompanyId(data.companies.find((c: { id: string }) => c.id === requested)?.id || data.companies[0]?.id || "");
+    }).catch(e => { setError(e.message); setLoading(false); });
+  }, [router]);
+  function selectCompany(value: string) {
+    requestVersion.current++; setProjects([]); setQuery(""); setFilter("all"); setCompanyId(value);
+    window.history.replaceState(null, "", `/dashboard?companyId=${encodeURIComponent(value)}`);
+  }
+  async function createCompany(e: React.FormEvent) {
+    e.preventDefault(); setCompanyBusy(true); setError("");
+    try {
+      const r = await fetch("/api/companies", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: companyName }) });
+      const data = await r.json(); if (!r.ok) throw new Error(data.error);
+      setCompanies(list => [...list, { ...data.company, role: "owner" }]);
+      selectCompany(data.company.id); setCreatingCompany(false); setCompanyName("");
+    } catch(e) { setError(e instanceof Error ? e.message : "Falha ao criar Company."); }
+    finally { setCompanyBusy(false); }
+  }
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (signal?: AbortSignal) => {
+    if (!companyId) return;
+    const version = ++requestVersion.current;
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/projects");
+      const response = await fetch(`/api/projects?companyId=${encodeURIComponent(companyId)}`, { signal });
       if (response.status === 401) {
         router.replace("/auth/login");
         return;
@@ -55,15 +93,17 @@ export default function DashboardPage() {
         throw new Error(
           data.error || "Não foi possível carregar as instâncias.",
         );
-      setProjects(data.projects);
+      if (!signal?.aborted && version === requestVersion.current) setProjects(data.projects);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Falha de conexão.");
+      if (!signal?.aborted && version === requestVersion.current) setError(e instanceof Error ? e.message : "Falha de conexão.");
     } finally {
-      setLoading(false);
+      if (!signal?.aborted && version === requestVersion.current) setLoading(false);
     }
-  }, [router]);
+  }, [router, companyId]);
   useEffect(() => {
-    void refresh();
+    const controller = new AbortController();
+    void refresh(controller.signal);
+    return () => controller.abort();
   }, [refresh]);
   const visible = projects.filter(
     (p) =>
@@ -84,7 +124,7 @@ export default function DashboardPage() {
         </Link>
         <div className="px-4 py-5">
           <p className="mb-3 px-3 text-[10px] font-medium uppercase tracking-[.18em] text-muted-foreground">
-            Workspace
+            Companies
           </p>
           <Link
             href="/dashboard"
@@ -92,15 +132,15 @@ export default function DashboardPage() {
             className="flex items-center gap-3 rounded-md border border-primary/15 bg-primary/10 px-3 py-2.5 text-sm text-primary"
           >
             <Database size={16} />
-            Instâncias<span className="ml-auto text-xs">{projects.length}</span>
+            Projetos<span className="ml-auto text-xs">{projects.length}</span>
           </Link>
-          <Link
+          {installationAdmin && <Link
             href="/dashboard/settings"
             className="mt-1 flex items-center gap-3 rounded-md px-3 py-2.5 text-sm text-muted-foreground hover:bg-accent"
           >
             <Settings2 size={16} />
             Configurações
-          </Link>
+          </Link>}
         </div>
         <div className="mt-auto border-t p-5">
           <div className="flex items-center gap-2 text-xs">
@@ -117,15 +157,15 @@ export default function DashboardPage() {
       <header className="flex h-16 items-center justify-between border-b px-5 md:px-10">
         <div className="flex items-center gap-2 text-sm">
           <Layers3 size={17} className="text-primary lg:hidden" />
-          <span className="text-muted-foreground">Workspace</span>
+          <span className="text-muted-foreground">Companies</span>
           <span className="px-2 text-muted-foreground/40">/</span>Visão geral
         </div>
         <div className="flex gap-1">
-          <Link href="/dashboard/settings">
+          {installationAdmin && <Link href="/dashboard/settings">
             <Button variant="ghost" size="sm" aria-label="Configurações">
               <Settings2 size={16} />
             </Button>
-          </Link>
+          </Link>}
           <Button
             variant="ghost"
             size="sm"
@@ -141,28 +181,44 @@ export default function DashboardPage() {
         </div>
       </header>
       <main className="mx-auto max-w-7xl px-5 py-10 md:px-10">
+        <section className="mb-8 rounded-lg border bg-card p-4" aria-label="Company atual">
+          <div className="flex flex-wrap items-center gap-3">
+            <label htmlFor="company" className="text-sm text-muted-foreground">Company</label>
+            <select id="company" className="h-10 max-w-full rounded-md border bg-background px-3 text-sm" value={companyId} onChange={e => selectCompany(e.target.value)}>
+              {!companies.length && <option value="">{loading ? "Carregando…" : "Crie sua Company"}</option>}
+              {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <span className="text-xs text-muted-foreground">{currentCompany?.role}</span>
+            <Button variant="outline" onClick={() => setCreatingCompany(v => !v)}>Nova Company</Button>
+            {currentCompany && ["owner", "admin"].includes(currentCompany.role) && <Link className="text-sm text-primary" href={`/dashboard/companies/${companyId}`}>Gerenciar membros</Link>}
+          </div>
+          {creatingCompany && <form className="mt-4 flex flex-wrap gap-3" onSubmit={createCompany}>
+            <Input aria-label="Nome da Company" placeholder="Ex.: Minha empresa" maxLength={80} required value={companyName} onChange={e => setCompanyName(e.target.value)} className="max-w-sm" />
+            <Button disabled={companyBusy}>{companyBusy ? "Criando…" : "Criar Company"}</Button>
+          </form>}
+        </section>
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div>
             <p className="mb-3 text-xs font-medium uppercase tracking-[.2em] text-primary">
               Seu Supabase, no seu servidor
             </p>
             <h1 className="text-3xl font-semibold tracking-tight">
-              Suas instâncias
+              Seus projetos
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
               Crie, configure e acompanhe seus projetos em um só lugar.
             </p>
           </div>
-          <Link href="/dashboard/create-project">
-            <Button>
+          <Link aria-disabled={!canOperate} onClick={e => { if (!canOperate) e.preventDefault(); }} href={`/dashboard/create-project?companyId=${encodeURIComponent(companyId)}`}>
+            <Button disabled={!canOperate}>
               <Plus size={16} className="mr-2" />
-              Nova instância
+              Novo projeto
             </Button>
           </Link>
         </div>
         <div className="my-8 grid grid-cols-3 divide-x rounded-lg border bg-card">
           {[
-            [projects.length, "Instâncias", Database],
+            [projects.length, "Projetos", Database],
             [
               projects.filter((p) => p.status === "active").length,
               "Implantadas",
@@ -195,7 +251,7 @@ export default function DashboardPage() {
               className="absolute left-3 top-3 text-muted-foreground"
             />
             <Input
-              aria-label="Buscar instâncias"
+              aria-label="Buscar projetos"
               className="pl-9"
               placeholder="Buscar por nome ou domínio…"
               value={query}
@@ -218,9 +274,9 @@ export default function DashboardPage() {
           <Button
             variant="outline"
             size="icon"
-            onClick={refresh}
+            onClick={() => void refresh()}
             disabled={loading}
-            aria-label="Atualizar instâncias"
+            aria-label="Atualizar projetos"
           >
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
           </Button>
@@ -267,11 +323,14 @@ export default function DashboardPage() {
                     </span>
                   </div>
                   <Link
-                    href={`/dashboard/projects/${p.id}/configure`}
+                    aria-disabled={!canOperate}
+                    onClick={e => { if (!canOperate) e.preventDefault(); }}
+                    href={canOperate ? `/dashboard/projects/${p.id}/database` : "#"}
                     className="block truncate text-lg font-medium tracking-tight hover:text-primary"
                   >
                     {p.name}
                   </Link>
+                  <span className="mt-2 inline-block rounded border px-2 py-0.5 font-mono text-xs text-primary">{p.branch?.name || "main"}</span>
                   <p className="mt-1 line-clamp-2 min-h-10 text-sm text-muted-foreground">
                     {p.description || "Instância Supabase independente"}
                   </p>
@@ -284,10 +343,12 @@ export default function DashboardPage() {
                     {new Date(p.createdAt).toLocaleDateString("pt-BR")}
                   </span>
                   <Link
-                    href={`/dashboard/projects/${p.id}/configure`}
+                    aria-disabled={!canOperate}
+                    onClick={e => { if (!canOperate) e.preventDefault(); }}
+                    href={canOperate ? `/dashboard/projects/${p.id}/database` : "#"}
                     className="flex items-center gap-2 text-xs font-medium hover:text-primary"
                   >
-                    Gerenciar
+                    {canOperate ? "Abrir main" : "Somente visualização"}
                     <ArrowUpRight size={14} />
                   </Link>
                 </div>
@@ -299,7 +360,7 @@ export default function DashboardPage() {
             <Database className="mx-auto mb-5 text-primary" size={32} />
             <h2 className="text-xl font-medium">
               {projects.length
-                ? "Nenhuma instância encontrada"
+                ? "Nenhum projeto encontrado"
                 : "Seu próximo projeto começa aqui"}
             </h2>
             <p className="mx-auto mb-6 mt-2 max-w-md text-sm text-muted-foreground">
@@ -318,10 +379,10 @@ export default function DashboardPage() {
                 Limpar filtros
               </Button>
             ) : (
-              <Link href="/dashboard/create-project">
-                <Button>
+              <Link aria-disabled={!canOperate} onClick={e => { if (!canOperate) e.preventDefault(); }} href={`/dashboard/create-project?companyId=${encodeURIComponent(companyId)}`}>
+                <Button disabled={!canOperate}>
                   <Plus size={16} className="mr-2" />
-                  Criar primeira instância
+                  Criar primeiro projeto
                 </Button>
               </Link>
             )}

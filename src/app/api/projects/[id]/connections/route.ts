@@ -1,8 +1,8 @@
+import { findInstance } from '@/lib/companies'
 import { NextRequest, NextResponse } from "next/server";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
-import { prisma } from "@/lib/db";
 import { validateSession } from "@/lib/auth";
 import { projectsPath } from "@/lib/runtime";
 import { getConnections } from "@/lib/connections";
@@ -17,9 +17,7 @@ export async function GET(
   if (!session)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
-  const project = await prisma.project.findFirst({
-    where: { id, ownerId: session.user.id },
-  });
+  const project = await findInstance(id, session.user.id);
   if (!project)
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   try {

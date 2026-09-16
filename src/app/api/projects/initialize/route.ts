@@ -1,3 +1,4 @@
+import { isInstallationAdmin } from '@/lib/companies'
 import { NextRequest, NextResponse } from 'next/server'
 import { validateSession } from '@/lib/auth'
 import { initializeSupabaseCore } from '@/lib/project'
@@ -14,6 +15,7 @@ export async function POST(request: NextRequest) {
     }
 
     const session = await validateSession(sessionToken)
+        if (session && !await isInstallationAdmin(session.user.id)) return NextResponse.json({ error: 'Apenas o administrador da instalação pode acessar este recurso.' }, { status: 403 })
     if (!session) {
       return NextResponse.json(
         { error: 'Invalid session' },

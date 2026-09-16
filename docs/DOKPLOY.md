@@ -22,6 +22,20 @@
 
 O Compose instala somente o painel e seu banco de metadados. O Traefik e os certificados são fornecidos pelo Dokploy. Não execute `install.sh` nesse servidor.
 
+## Domínios com CNAME
+
+Em Configurações, defina um hostname central, como `infra.seudominio.com`, apontando por A/AAAA para o servidor do proxy. Alternativamente, configure `INSTANCE_DNS_TARGET` no Environment do Dokploy. Sem um valor explícito, o painel utiliza o hostname válido de `NEXTAUTH_URL`.
+
+Para cada instância, crie `api.cliente.com CNAME infra.seudominio.com` e `studio.cliente.com CNAME infra.seudominio.com`. A tela da instância mostra os registros e permite copiar o destino. Os registros precisam ser criados no provedor DNS; salvar no painel não altera DNS. Depois, salve e implante para aplicar o roteamento e emitir os certificados dos domínios da instância.
+
+Ao mudar somente o IP do servidor, atualize o A/AAAA central. Ao mudar o próprio hostname central, atualize os CNAMEs existentes. CNAME no domínio raiz depende de suporte ALIAS/ANAME do provedor.
+
+## Informações de conexão SQL
+
+Na aba Credenciais, escolha Conexão direta, Session Pooler ou Transaction Pooler. Os dados vêm do Compose salvo, incluindo nomes reais dos containers e portas publicadas. Você pode copiar a URI completa ou host, porta, banco, usuário e senha separadamente.
+
+No Dokploy padrão, as três opções são privadas, acessíveis por containers conectados à rede da instância. Para acesso externo, configure TCP/túnel separadamente. Somente quando houver uma porta publicada no Compose a interface oferece essa origem; se necessário, informe o hostname/IP real do servidor. O domínio CNAME/HTTPS do Studio ou da API não fornece conexão SQL.
+
 ## Múltiplas instâncias
 
 Cada projeto criado pelo painel é uma stack Compose independente no mesmo Docker daemon, com nome único, rede privada, volumes e segredos próprios. Essas stacks são gerenciadas pelo SupaPanel, não cadastradas como aplicações separadas no Dokploy.

@@ -1,5 +1,6 @@
 'use client'
 
+import DnsTargetSettings from '@/components/dashboard/DnsTargetSettings'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -113,7 +114,7 @@ export default function SettingsPage() {
         )
     }
 
-    if (managedExternally) return <main className="mx-auto max-w-3xl px-5 py-12"><Link href="/dashboard" className="text-sm text-muted-foreground hover:text-primary">← Voltar às instâncias</Link><h1 className="mb-2 mt-8 text-3xl font-semibold tracking-tight">Configurações</h1><p className="mb-8 text-muted-foreground">Seu painel está integrado ao Dokploy.</p><Card><CardHeader><CardTitle>Domínio e HTTPS</CardTitle><CardDescription>Gerenciados pelo proxy do Dokploy.</CardDescription></CardHeader><CardContent className="space-y-4 text-sm"><p>No Dokploy, abra este serviço Compose → Domains. Configure o domínio no serviço <code>panel</code>, porta <code>3000</code>, e habilite HTTPS.</p><p className="text-muted-foreground">URL configurada: <span className="text-foreground">{panelUrl}</span></p><p className="text-muted-foreground">Os domínios de cada instância Supabase são configurados diretamente na página da instância.</p></CardContent></Card></main>
+    if (managedExternally) return <main className="mx-auto max-w-3xl px-5 py-12"><Link href="/dashboard" className="text-sm text-muted-foreground hover:text-primary">← Voltar às instâncias</Link><h1 className="mb-2 mt-8 text-3xl font-semibold tracking-tight">Configurações</h1><p className="mb-8 text-muted-foreground">Seu painel está integrado ao Dokploy.</p><Card><CardHeader><CardTitle>Domínio e HTTPS</CardTitle><CardDescription>Gerenciados pelo proxy do Dokploy.</CardDescription></CardHeader><CardContent className="space-y-4 text-sm"><p>No Dokploy, abra este serviço Compose → Domains. Configure o domínio no serviço <code>panel</code>, porta <code>3000</code>, e habilite HTTPS.</p><p className="text-muted-foreground">URL configurada: <span className="text-foreground">{panelUrl}</span></p><p className="text-muted-foreground">Os domínios de cada instância Supabase são configurados diretamente na página da instância.</p></CardContent></Card><DnsTargetSettings /></main>
 
     return (
         <div className="min-h-screen bg-background">
@@ -239,6 +240,7 @@ export default function SettingsPage() {
                             </CardContent>
                         </Card>
 
+                        <DnsTargetSettings />
                         {/* Current Access Info */}
                         <Card>
                             <CardHeader>

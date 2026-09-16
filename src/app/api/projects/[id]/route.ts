@@ -1,3 +1,4 @@
+import { getDnsTarget } from '@/lib/dns-target'
 import { prisma } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
 import { validateSession } from '@/lib/auth'
@@ -55,5 +56,5 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   const { id } = await params
   const project = await prisma.project.findFirst({ where: { id, ownerId: session.user.id } })
   if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
-  return NextResponse.json({ project, proxyMode: process.env.PROXY_MODE || 'standalone' })
+  return NextResponse.json({ project, dnsTarget: await getDnsTarget(), proxyMode: process.env.PROXY_MODE || 'standalone' })
 }

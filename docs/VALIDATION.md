@@ -24,3 +24,11 @@ O Dokploy de produção não foi acessado. A instalação final ainda deve verif
 Instâncias existentes não foram migradas. O novo template usa PostgreSQL 17; trocar a imagem de uma instância PostgreSQL 15 exige migração e backup específicos, não apenas uma alteração de tag.
 
 Os testes não cobrem todas as funcionalidades internas do Supabase (por exemplo, envio SMTP, provedores OAuth e código das Edge Functions do usuário).
+
+## Conexões SQL, CNAME e documentação
+
+- Testes de conexão direta, Session Pooler e Transaction Pooler: usuários, portas internas/publicadas, restrições de rede e codificação de senhas na URI.
+- API validada com duas instâncias de demonstração: três conexões privadas por instância, extraídas do Compose salvo.
+- Destino CNAME: hostname normalizado e persistido; IP, protocolo, porta e localhost rejeitados.
+- Browser em build de produção: abas de conexão, cópia da URI com confirmação, registros CNAME da API/Studio e prints atualizados no README.
+- `npm test` (8 testes), lint, type-check e build aprovados.

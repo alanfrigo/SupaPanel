@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import DnsRecords from "@/components/dashboard/DnsRecords";
+import DatabaseConnections from "@/components/dashboard/DatabaseConnections";
 import { Label } from "@/components/ui/label";
 
 type Project = {
@@ -37,6 +39,7 @@ export default function ConfigureProjectPage() {
   const [env, setEnv] = useState<Record<string, string>>({});
   const [domain, setDomain] = useState("");
   const [studioDomain, setStudioDomain] = useState("");
+  const [dnsTarget, setDnsTarget] = useState<string | null>(null);
   const [mode, setMode] = useState("");
   const [tab, setTab] = useState("general");
   const [busy, setBusy] = useState("");
@@ -72,6 +75,7 @@ export default function ConfigureProjectPage() {
         if (cancelled) return;
         setProject(data.project);
         setMode(data.proxyMode);
+        setDnsTarget(data.dnsTarget);
         setEnv(values.envVars);
         setDomain(data.project.domain || "");
         setStudioDomain(data.project.studioDomain || "");
@@ -296,6 +300,11 @@ export default function ConfigureProjectPage() {
                             gateway.
                           </p>
                         </div>
+                        <DnsRecords
+                          target={dnsTarget}
+                          domain={domain}
+                          studioDomain={studioDomain}
+                        />
                         {field(
                           "SITE_URL",
                           "URL da sua aplicação",
@@ -340,28 +349,34 @@ export default function ConfigureProjectPage() {
                   </>
                 )}
                 {tab === "credentials" && (
-                  <section className="space-y-6 rounded-lg border bg-card p-6">
-                    <div>
-                      <h2 className="font-medium">Credenciais da instância</h2>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Geradas automaticamente com aleatoriedade criptográfica.
-                        As chaves secretas são exclusivas deste projeto.
-                      </p>
-                    </div>
-                    {field("DASHBOARD_USERNAME", "Usuário do Studio")}
-                    {field("DASHBOARD_PASSWORD", "Senha do Studio")}
-                    {field(
-                      "POSTGRES_PASSWORD",
-                      "Senha do banco",
-                      "Após a primeira implantação, a senha do banco precisa ser alterada também no PostgreSQL. Alterar somente este campo não migra uma senha existente.",
-                    )}
-                    {field("ANON_KEY", "Chave pública · anon")}
-                    {field(
-                      "SERVICE_ROLE_KEY",
-                      "Chave de serviço · service_role",
-                      "Uso exclusivo no backend. Não exponha esta chave no navegador.",
-                    )}
-                  </section>
+                  <>
+                    <DatabaseConnections projectId={id} dirty={dirty} />
+                    <section className="space-y-6 rounded-lg border bg-card p-6">
+                      <div>
+                        <h2 className="font-medium">
+                          Credenciais da instância
+                        </h2>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Geradas automaticamente com aleatoriedade
+                          criptográfica. As chaves secretas são exclusivas deste
+                          projeto.
+                        </p>
+                      </div>
+                      {field("DASHBOARD_USERNAME", "Usuário do Studio")}
+                      {field("DASHBOARD_PASSWORD", "Senha do Studio")}
+                      {field(
+                        "POSTGRES_PASSWORD",
+                        "Senha do banco",
+                        "Após a primeira implantação, a senha do banco precisa ser alterada também no PostgreSQL. Alterar somente este campo não migra uma senha existente.",
+                      )}
+                      {field("ANON_KEY", "Chave pública · anon")}
+                      {field(
+                        "SERVICE_ROLE_KEY",
+                        "Chave de serviço · service_role",
+                        "Uso exclusivo no backend. Não exponha esta chave no navegador.",
+                      )}
+                    </section>
+                  </>
                 )}
                 {tab === "advanced" && (
                   <section className="rounded-lg border bg-card p-6">

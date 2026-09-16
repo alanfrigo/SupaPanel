@@ -1,286 +1,153 @@
 <div align="center">
-  <img src="public/logo.png" alt="SupaPanel Logo" width="120" />
+  <img src="public/logo.png" alt="SupaPanel" width="120" />
   <h1>SupaPanel</h1>
-  <p><strong>Open-source management panel for self-hosted Supabase instances</strong></p>
+  <p><strong>Várias instâncias Supabase self-hosted. Um único painel.</strong></p>
 
   [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-  [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://hub.docker.com)
-  [![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org)
+  [![Docker Compose](https://img.shields.io/badge/Docker-Compose-blue.svg)](docker-compose.yml)
 
-  <br />
-  <img src="public/demo.png" alt="SupaPanel Demo" width="100%" />
+  <img src="public/demo.png" alt="Novo painel SupaPanel com busca, filtros e gerenciamento de instâncias" width="100%" />
 </div>
 
-SupaPanel is a web-based control panel that simplifies the deployment and management of multiple self-hosted Supabase projects. Deploy your own Supabase infrastructure on any Linux server with a single command.
+Crie e gerencie instâncias Supabase independentes no mesmo servidor, sem montar manualmente uma stack para cada projeto. Cada instância tem seu próprio PostgreSQL, Auth, Storage, Realtime, Edge Functions, Studio, credenciais, volumes e rede privada.
 
-> **Fork Notice**: This project is based on [sharonpraju/SupaConsole](https://github.com/sharonpraju/SupaConsole). Thanks to [@sharonpraju](https://github.com/sharonpraju) for the original work.
+> Baseado em [sharonpraju/SupaConsole](https://github.com/sharonpraju/SupaConsole).
 
----
+## Recursos
 
-## Table of Contents
+- Instalação via **Docker Compose no Dokploy**, aproveitando seu Traefik e HTTPS.
+- Dashboard responsivo com busca, filtros e acesso direto ao gerenciamento.
+- Criação com download automático do template e geração criptográfica de credenciais.
+- Domínios separados para API e Studio, com instruções de **CNAME** prontas para copiar.
+- **Conexão direta, Session Pooler e Transaction Pooler**: URI, host, porta, banco, usuário e senha, com botões de cópia.
+- Conexões calculadas a partir do Compose salvo: distingue a rede privada Docker das portas realmente publicadas.
+- Salvar e implantar, pausar preservando dados e excluir mediante confirmação pelo nome.
+- Studio protegido pelo gateway e operações restritas ao proprietário da instância.
 
-- [Why SupaPanel?](#why-supapanel)
-- [Features](#features)
-- [Quick Start](#quick-start)
-- [Tech Stack](#tech-stack)
-- [Usage Guide](#usage-guide)
-- [Uninstallation](#uninstallation)
-- [Project Structure](#project-structure)
-- [Configuration](#configuration)
-- [Contributing](#contributing)
-- [License](#license)
+## Instalar no Dokploy
 
----
+1. Crie um serviço **Docker Compose** apontando para este repositório, com Compose Path `./docker-compose.yml`.
+2. Configure em **Environment**:
 
-## Why SupaPanel?
+   ```dotenv
+   POSTGRES_PASSWORD=senha_alfanumerica_aleatoria
+   NEXTAUTH_SECRET=segredo_aleatorio_longo
+   NEXTAUTH_URL=https://panel.seudominio.com
+   DATA_PATH=/etc/supapanel
+   PROXY_NETWORK=dokploy-network
+   INSTANCE_DNS_TARGET=infra.seudominio.com
+   ```
 
-If you're looking to **self-host Supabase** without the complexity of managing Docker Compose files, Traefik configurations, and SSL certificates manually, SupaPanel provides:
+   Gere cada segredo separadamente com `openssl rand -hex 32`.
+3. Em **Domains**, associe o domínio do painel ao serviço `panel`, porta `3000`, com HTTPS.
+4. Implante e abra o painel para criar a conta de administrador. O cadastro público fecha após a primeira conta.
+5. Crie uma instância, configure os domínios e clique em **Salvar e implantar**.
 
-- **Single-command deployment** for production environments
-- **Multi-project management** from a unified dashboard
-- **Automatic HTTPS** via Traefik and Let's Encrypt
-- **Custom domain support** for each Supabase project
-- **Team collaboration** with user management
+O Compose instala o painel e seu banco de metadados. As instâncias criadas são stacks independentes, gerenciadas pelo SupaPanel no mesmo Docker daemon. Não são criadas como aplicações separadas no Dokploy.
 
-Perfect for agencies, development teams, and organizations that need to manage multiple Supabase instances on their own infrastructure.
+O painel precisa do socket Docker. `DATA_PATH` deve ser o mesmo caminho absoluto no host e no container, pois os serviços criados usam os arquivos desse diretório. O socket concede controle administrativo do Docker; restrinja o acesso ao painel.
 
----
+Veja o [guia completo de instalação e persistência](docs/DOKPLOY.md).
 
-## Features
+### Domínios com CNAME
 
-| Feature | Description |
-|---------|-------------|
-| **One-Command Install** | Deploy on any Linux server with a single `curl` command |
-| **Docker Integration** | Automated Docker Compose deployment for each project |
-| **Traefik Reverse Proxy** | Automatic HTTPS with Let's Encrypt certificates |
-| **Secure Registration** | First-user-only admin registration |
-| **Environment Config** | Web interface for managing project environment variables |
-| **Custom Domains** | Assign unique domains to each Supabase project |
-| **Team Management** | User authentication and team member access control |
-| **Modern Interface** | Dark theme with responsive design using shadcn/ui |
+Configure um hostname central, por exemplo:
 
----
+| Tipo | Nome | Destino |
+|---|---|---|
+| A | `infra.seudominio.com` | IP do servidor |
+| CNAME | `api.cliente.com` | `infra.seudominio.com` |
+| CNAME | `studio.cliente.com` | `infra.seudominio.com` |
 
-## Quick Start
+Em **Configurações → Hostname para os domínios das instâncias**, salve `infra.seudominio.com`. Também é possível definir `INSTANCE_DNS_TARGET`; se não houver configuração, o painel utiliza o hostname de `NEXTAUTH_URL`, quando válido.
 
-### Dokploy / Docker Compose
+Use o hostname central em modo **DNS only**, apontando diretamente ao servidor, sem proxy/CDN. Isso evita depender do proxy do domínio do painel; consulte as [restrições de CNAME entre contas Cloudflare](https://developers.cloudflare.com/dns/cname-flattening/).
 
-Use the root `docker-compose.yml` to run SupaPanel behind the existing Dokploy proxy, with isolated Supabase stacks and no additional Traefik installation. Follow the [Dokploy installation guide](docs/DOKPLOY.md) for required environment variables, persistence, domains and version limitations.
+Na instância, informe `api.cliente.com` e `studio.cliente.com`. O painel mostra os registros DNS e permite copiar o destino. Crie esses registros no provedor DNS e clique em **Salvar e implantar**. O Traefik identifica o domínio solicitado e encaminha para a instância correta; o CNAME sozinho não configura o roteamento nem os certificados.
 
-### Production Deployment (fresh VPS)
+Se o IP do servidor mudar, atualize apenas o A/AAAA do hostname central. Se mudar o hostname central, os CNAMEs existentes precisam ser atualizados. Use subdomínios: ALIAS/ANAME no domínio raiz depende do provedor. Não crie CNAME apontando para si mesmo nem registros A/AAAA conflitantes no mesmo nome. O painel não altera automaticamente seu provedor DNS.
 
-Deploy SupaPanel on any fresh Linux server (Ubuntu 22.04+, Debian 11+):
+<img src="public/domains.png" alt="Configuração de API e Studio com registros CNAME prontos para copiar" width="100%" />
 
-```bash
+### Conectar ao PostgreSQL
+
+Abra **Instância → Credenciais → Conectar ao banco**:
+
+| Método | Uso | Usuário | Porta interna |
+|---|---|---|---|
+| Conexão direta | Migrações, backups e conexões persistentes | `postgres` | `5432` |
+| Session Pooler | Sessões persistentes, compatível com prepared statements | `postgres.<POOLER_TENANT_ID>` | `5432` |
+| Transaction Pooler | Conexões curtas; desative prepared statements no cliente | `postgres.<POOLER_TENANT_ID>` | `6543` |
+
+A interface mostra a URI e cada parâmetro separadamente, com senha oculta e botões para copiar. Caracteres especiais da senha são codificados na URI. As informações refletem a configuração salva; mudanças precisam ser implantadas.
+
+No Dokploy, por padrão, SQL está disponível apenas para containers na rede privada da instância. O domínio HTTPS da API/Studio **não publica PostgreSQL**. Para um cliente externo, configure acesso TCP ou um túnel separadamente. A opção de porta publicada só aparece quando ela existe no Compose; informe o hostname/IP real do servidor. HTTPS no proxy não habilita TLS para PostgreSQL.
+
+<img src="public/connections.png" alt="Credenciais com conexão direta e poolers, parâmetros de acesso e cópia da URI" width="100%" />
+
+## Versão do Supabase
+
+Novas instâncias usam o commit oficial [`9e225a2`](https://github.com/supabase/supabase/tree/9e225a279b33e4e6e1452e573a40a6a25aa2cb2f/docker), de 03/08/2026, incluindo:
+
+| Serviço | Imagem |
+|---|---|
+| Studio | `supabase/studio:2026.08.03-sha-022b374` |
+| Kong | `kong/kong:3.9.3` |
+| Auth | `supabase/gotrue:v2.189.0` |
+| REST | `postgrest/postgrest:v14.12` |
+| Realtime | `supabase/realtime:v2.102.3` |
+| Storage | `supabase/storage-api:v1.60.4` |
+| imgproxy | `darthsim/imgproxy:v3.30.1` |
+| Meta | `supabase/postgres-meta:v0.96.6` |
+| Edge Functions | `supabase/edge-runtime:v1.74.0` |
+| PostgreSQL | `supabase/postgres:17.6.1.136` |
+| Supavisor | `supabase/supavisor:2.9.5` |
+
+`SUPABASE_CORE_REF` permite selecionar outro commit/tag compatível. Instâncias existentes mantêm seu template: migrar PostgreSQL 15 para 17 exige backup e migração específica, não somente trocar a imagem sobre o mesmo volume.
+
+## Operação e backups
+
+- **Pausar:** interrompe os serviços e preserva dados.
+- **Salvar e implantar:** aplica a configuração e aguarda a inicialização dos serviços.
+- **Excluir:** remove containers, volumes e arquivos permanentemente. Requer digitar o nome da instância.
+- O status do dashboard indica a última operação realizada pelo painel.
+- Faça backup do banco de metadados, de `${DATA_PATH}/projects` e dos volumes Docker de cada instância, incluindo `<slug>_postgres-data`.
+- Cada instância executa uma stack completa; dimensione memória, CPU e disco para a quantidade de projetos.
+
+## VPS sem Dokploy
+
+O instalador legado configura Docker e seu próprio Traefik. Use somente em servidor sem outro proxy ocupando as mesmas portas:
+
+```sh
 curl -sSL https://raw.githubusercontent.com/alanfrigo/SupaPanel/main/install.sh | sh
 ```
 
-The installation script will:
+Para usar estas alterações antes de uma release da imagem publicada, prefira construir a imagem deste checkout pelo Compose do repositório. Não execute o instalador legado sobre uma instalação Dokploy.
 
-1. Install Docker if not present
-2. Configure Traefik reverse proxy with automatic HTTPS
-3. Deploy PostgreSQL database
-4. Launch the SupaPanel application
-5. Generate secure passwords automatically
+## Desenvolvimento
 
-After installation, access `http://YOUR_SERVER_IP:3000` to create your admin account.
-
-### Local Development
-
-For local development setup, see the [Testing Guide](docs/TESTING.md).
-
-```bash
-# Clone repository
-git clone https://github.com/alanfrigo/SupaPanel.git
-cd SupaPanel
-
-# Install dependencies
-npm install
-
-# Start PostgreSQL
-docker compose -f docker-compose.dev.yml up -d
-
-# Configure environment
+```sh
+npm ci
 cp .env.example .env
+docker compose -f docker-compose.dev.yml up -d
 npm run db:generate
 npm run db:push
-
-# Start development server
 npm run dev
 ```
 
----
+Ajuste `DATABASE_URL` para seu banco local. Verificações:
 
-## Tech Stack
-
-| Layer | Technologies |
-|-------|-------------|
-| Frontend | Next.js 15, TypeScript, Tailwind CSS, shadcn/ui |
-| Backend | Next.js API Routes, Prisma ORM |
-| Database | PostgreSQL |
-| Proxy | Traefik v3 with Let's Encrypt |
-| Container | Docker, Docker Compose |
-
----
-
-## Usage Guide
-
-### Initial Setup
-
-1. Access the panel at `http://YOUR_IP:3000`
-2. Create your admin account (first user registration only)
-3. Create your first Supabase instance; the pinned template is initialized automatically
-4. Configure its domains and click **Save and deploy**
-
-### Creating Projects
-
-1. Click **New Project** on the dashboard
-2. Enter project name and description
-3. Configure environment variables
-4. Deploy with one click
-
-### Custom Domain Configuration
-
-To use a custom domain for your Supabase project, follow these steps:
-
-#### Prerequisites
-
-- A domain you own with access to DNS settings
-- Your SupaPanel server's public IP address
-
-#### Step 1: Configure DNS Records
-
-Add the following DNS records pointing to your server's IP:
-
-| Type | Name | Value |
-|------|------|-------|
-| A | `api.example.com` | `YOUR_SERVER_IP` |
-| A | `studio.api.example.com` | `YOUR_SERVER_IP` |
-
-> **Note:** Replace `api.example.com` with your chosen domain and `YOUR_SERVER_IP` with your server's public IP address.
-
-#### Step 2: Configure Domain in SupaPanel
-
-1. Go to **Dashboard** → Select your project → Click **Configure**
-2. Find the **Custom Domain Configuration** section at the top
-3. Enter your domain (e.g., `api.example.com`)
-4. Click **Save Domain**
-
-#### Step 3: Automatic SSL Provisioning
-
-Once DNS is configured:
-- Traefik automatically detects the domain
-- Let's Encrypt issues an SSL certificate
-- HTTPS is enabled automatically (no manual configuration needed)
-
-#### Resulting URLs
-
-After configuration, your Supabase services will be available at:
-
-| Service | URL |
-|---------|-----|
-| **Supabase API** | `https://api.example.com` |
-| **Supabase Studio** | `https://studio.api.example.com` |
-| **PostgREST** | `https://api.example.com/rest/v1` |
-| **Auth** | `https://api.example.com/auth/v1` |
-| **Storage** | `https://api.example.com/storage/v1` |
-| **Realtime** | `wss://api.example.com/realtime/v1` |
-
-### Panel Domain Configuration
-
-You can also set up a custom domain for the SupaPanel dashboard itself:
-
-1. Go to **Dashboard** → Click **Settings** (gear icon in header)
-2. In the **Panel Domain** section, enter your domain (e.g., `panel.example.com`)
-3. Point your domain's DNS A record to this server's IP address
-4. Click **Save Domain**
-
-After configuration:
-- Access your SupaPanel at `https://panel.example.com`
-- Direct IP access (`http://YOUR_IP:3000`) remains available as fallback
-
----
-
-## Uninstallation
-
-To completely remove SupaPanel from your server, follow these steps:
-
-1. **Stop and remove containers**:
-   ```bash
-   cd /etc/supapanel
-   docker compose down -v
-   ```
-
-2. **Remove data directory** (WARNING: This will delete all your projects and data):
-   ```bash
-   sudo rm -rf /etc/supapanel
-   ```
-
-3. **Remove Docker image** (optional):
-   ```bash
-   docker rmi alanmf30/supapanel:latest
-   ```
-
----
-
-## Project Structure
-
-```
-supapanel/
-├── src/
-│   ├── app/                    # Next.js App Router
-│   │   ├── api/                # API routes
-│   │   ├── auth/               # Authentication pages
-│   │   └── dashboard/          # Dashboard pages
-│   ├── components/             # React components
-│   └── lib/                    # Utilities (auth, db, project, traefik)
-├── prisma/                     # Database schema
-├── traefik/                    # Traefik configuration
-├── docs/                       # Documentation
-│   └── TESTING.md              # Testing guide
-├── install.sh                  # Production installation script
-└── docker-compose.dev.yml      # Development PostgreSQL
+```sh
+npm test
+npm run lint
+npm run type-check
+npm run build
 ```
 
----
+Stack: Next.js, React, TypeScript, Tailwind, Prisma, PostgreSQL e Docker Compose.
 
-## Configuration
+Consulte [TESTING.md](docs/TESTING.md), o [guia Dokploy](docs/DOKPLOY.md) e o [registro de validação](docs/VALIDATION.md). Os prints mostram instâncias de demonstração locais. DNS e emissão de certificados reais precisam ser verificados no servidor de destino.
 
-### Environment Variables
+## Licença
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | Required |
-| `NEXTAUTH_SECRET` | Session encryption secret | Auto-generated |
-| `NEXTAUTH_URL` | Panel base URL | `http://localhost:3000` |
-| `TRAEFIK_ACME_EMAIL` | Let's Encrypt notification email | `admin@example.com` |
-| `DATA_PATH` | Data storage directory | `/etc/supapanel` |
-
----
-
-## Contributing
-
-Contributions are welcome. Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Make your changes
-4. Commit: `git commit -m 'Add your feature'`
-5. Push: `git push origin feature/your-feature`
-6. Open a Pull Request
-
-See [TESTING.md](docs/TESTING.md) for development setup instructions.
-
----
-
-## License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
----
-
-## Acknowledgments
-
-- [sharonpraju/SupaConsole](https://github.com/sharonpraju/SupaConsole) — Original project
-- [Supabase](https://supabase.com) — The open-source Firebase alternative
-- [Traefik](https://traefik.io) — Cloud-native reverse proxy
+[MIT](LICENSE). Agradecimentos ao SupaConsole, Supabase e Traefik.

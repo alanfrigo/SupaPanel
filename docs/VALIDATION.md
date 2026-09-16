@@ -91,3 +91,22 @@ políticas usam SQL. Ainda não há histórico de consultas, cancelamento manual
 clonagem de branches ou integração GitHub.
 
 Referência de compatibilidade: [rotas de query do postgres-meta v0.96.6](https://github.com/supabase/postgres-meta/blob/v0.96.6/src/server/routes/query.ts).
+
+## Publicação de portas pelo painel — 16/09/2026
+
+- Testes unitários: limites, portas duplicadas, interfaces permitidas, mapeamentos de conexão direta/session/transaction, preservação de portas internas, labels de roteamento e publicações não relacionadas.
+- Integração de Companies: a alteração de portas rejeita outra Company e membros viewer. Suíte com `COMPANY_INTEGRATION=1`: 11 testes passaram; integração do editor SQL não executada nesta rodada.
+- API com dois projetos Compose isolados: reserva de portas de outra instância ainda parada e conflito com container em execução rejeitados.
+- Browser: edição, salvamento, indicação pendente e botão “Salvar e implantar”. Consulta PostgreSQL real pelo host após trocar a porta direta.
+- Remoção das três publicações: estado pendente antes do Compose up e privado depois. Os fixtures desta rodada usam PostgreSQL; a verificação dos poolers cobre mapeamento Docker, não autenticação/protocolo Supavisor.
+- Portas ativas são verificadas por inspeção Docker; o painel não testa firewall externo nem abre regras automaticamente. Processos nativos do host são verificados pelo Docker na implantação.
+
+## Branches e clonagem — 16/09/2026
+
+- Fila persistente com eleição de worker por advisory lock PostgreSQL; respostas HTTP 202, progresso por etapa, bloqueio de operações na origem/destino durante o job e recuperação explícita de interrupções.
+- Stacks reais: clonagem de tabela com FK para `auth.users`, login com usuário/senha copiados, download de objeto Storage com atributos estendidos preservados, chaves diferentes e escrita isolada da origem.
+- Estrutura sem dados: tabela e política RLS presentes, sem registros ou usuários Auth.
+- Interrupção simulada: retomada do Storage da origem, cópia marcada como falha, exclusão de branch ainda sem arquivos e proteção de `main` enquanto houver branches adicionais.
+- `npm run test:branches`: cria banco de metadados descartável e stacks Supabase reais; requer Docker, imagens disponíveis e recursos para duas stacks. Remove os recursos criados ao finalizar normalmente.
+
+Resultado final desta entrega: `npm run test:branches` passou em stacks reais; testes de Companies incluindo autorização/isolamento da API de branches passaram; testes unitários, ESLint, TypeScript e build de produção passaram. Browser validou criação assíncrona, exclusão com confirmação e troca de branch. O worker também consumiu um job persistido ao iniciar o build de produção.

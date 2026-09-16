@@ -1,4 +1,5 @@
 "use client";
+import HostPorts from "./HostPorts";
 import { useEffect, useState } from "react";
 import { Copy, Eye, EyeOff, Loader2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ export default function DatabaseConnections({
 }) {
   const [data, setData] = useState<ConnectionInfo | null>(null);
   const [error, setError] = useState("");
+  const [portMessage, setPortMessage] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [selected, setSelected] = useState("direct");
   const [reveal, setReveal] = useState(false);
@@ -21,8 +23,11 @@ export default function DatabaseConnections({
   const [scope, setScope] = useState("docker");
   const [serverHost, setServerHost] = useState("");
   useEffect(() => {
-    const controller = new AbortController();
     setData(null);
+    setPortMessage("");
+  }, [projectId]);
+  useEffect(() => {
+    const controller = new AbortController();
     setError("");
     fetch(`/api/projects/${projectId}/connections`, {
       signal: controller.signal,
@@ -92,6 +97,11 @@ export default function DatabaseConnections({
           Copie a URI ou use os parâmetros no seu cliente PostgreSQL.
         </p>
       </div>
+      {portMessage && (
+        <p role="status" className="text-sm text-primary">
+          {portMessage}
+        </p>
+      )}
       {error && (
         <div role="alert" className="text-sm text-destructive">
           {error}
@@ -117,6 +127,15 @@ export default function DatabaseConnections({
       )}
       {current && data && (
         <>
+          <HostPorts
+            projectId={projectId}
+            data={data}
+            dirty={dirty}
+            onSaved={(message) => {
+              setPortMessage(message);
+              setAttempt((a) => a + 1);
+            }}
+          />
           <div
             className="flex flex-wrap gap-2"
             role="group"
@@ -139,6 +158,26 @@ export default function DatabaseConnections({
               </Button>
             ))}
           </div>
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            <span>
+              {
+                {
+                  active: "Porta ativa no host",
+                  pending: "Alteração de portas aguardando implantação",
+                  private: "Sem porta ativa no host",
+                  unknown: "Não foi possível verificar a publicação no Docker",
+                }[current.publicationState || "unknown"]
+              }
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setAttempt((a) => a + 1)}
+            >
+              Atualizar conexões
+            </Button>
+          </div>
           <p className="text-sm leading-relaxed text-muted-foreground">
             {current.description}
           </p>
@@ -147,7 +186,7 @@ export default function DatabaseConnections({
               Origem da conexão
               <select
                 className="rounded-md border bg-card px-3 py-2 text-sm"
-                value={scope}
+                value={published ? "host" : "docker"}
                 onChange={(e) => {
                   setScope(e.target.value);
                   setCopied("");
@@ -159,7 +198,7 @@ export default function DatabaseConnections({
                 )}
               </select>
             </label>
-            {scope === "docker" ? (
+            {!published ? (
               <p className="text-xs leading-relaxed text-muted-foreground">
                 Disponível para containers conectados à rede{" "}
                 <code className="break-all text-foreground">

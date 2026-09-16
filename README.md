@@ -1,4 +1,13 @@
 <div align="center">
+  <img src="public/logo.png" alt="SupaPanel" width="120" />
+  <h1>SupaPanel</h1>
+  <p><strong>Várias instâncias Supabase self-hosted. Um único painel.</strong></p>
+
+  [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+  [![Docker Compose](https://img.shields.io/badge/Docker-Compose-blue.svg)](docker-compose.yml)
+
+  <img src="public/demo.png" alt="Novo painel SupaPanel com busca, filtros e gerenciamento de instâncias" width="100%" />
+</div>
 
 ## Banco de dados integrado
 
@@ -14,6 +23,16 @@ Abra um projeto para acessar suas tabelas e o editor SQL sem entrar no Studio se
 
 O acesso respeita a Company e usa o serviço `meta` da própria instância via Docker Compose, sem publicar pg-meta ou portas SQL. A instância precisa estar implantada, com `db` e `meta` disponíveis. As operações usam acesso administrativo ao banco, inclusive quando há RLS; viewers não têm acesso ao editor. Constraints, políticas e alterações avançadas de estrutura são feitas pelo SQL nesta versão. Controle manual de transações, COPY, DO e CALL exigem um cliente externo; cancelamento manual e histórico de consultas ainda não estão disponíveis.
 
+## Branches adicionais e clonagem
+
+Abra um projeto → **Gerenciar branches** para criar um ambiente vazio, copiar somente a estrutura, copiar estrutura + dados da aplicação ou incluir **Auth e Storage local**. A fila salva o progresso e cada branch recebe credenciais e volumes independentes. O seletor de branch está disponível no banco e nas configurações.
+
+A clonagem completa pausa temporariamente os serviços da origem para copiar banco e arquivos; os usuários precisam fazer novo login na cópia. As novas branches começam sem portas públicas ou domínios. Falhas ficam visíveis e a cópia incompleta pode ser removida; `main` é protegida enquanto houver outras branches. Merge/promoção e GitHub ainda não estão incluídos.
+
+Veja [modos, compatibilidade, recuperação e limites da clonagem](docs/BRANCHES.md).
+
+<img src="public/branches.png" alt="Branches de um projeto com progresso de clonagem e criação de novos ambientes" width="100%" />
+
 ## Companies e projetos — desenvolvimento do Studio unificado
 
 O painel agora permite criar várias **Companies**, selecionar seus projetos e gerenciar membros por Company. Cada projeto novo começa com uma branch **main**, com a configuração e as credenciais de sua instância. O contexto Company / projeto / main aparece na configuração.
@@ -25,19 +44,10 @@ As instalações existentes são associadas automaticamente a uma Company inicia
 - **viewer:** acompanha a visão geral, sem acesso aos dados, segredos ou operações da instância.
 - O primeiro usuário da instalação administra as configurações globais e pode cadastrar novas contas pela tela de membros. Para contas novas, informe uma senha de pelo menos 12 caracteres; não há envio automático de convite por email. Outros gestores adicionam contas já cadastradas.
 
-**Escopo atual:** organização e permissões com branch `main`, editor de tabelas e SQL integrado. Criação de branches adicionais e automação GitHub são próximas entregas; veja a [arquitetura e o escopo](docs/UNIFIED-STUDIO.md).
+**Escopo atual:** Companies, projetos com múltiplas branches, clonagem com Auth/Storage local, editor de tabelas e SQL integrado. Promoção/merge e automação GitHub continuam futuros; veja a [arquitetura e o escopo](docs/UNIFIED-STUDIO.md).
 
 Ao atualizar, faça backup do banco de metadados do painel e use a imagem construída deste código. O entrypoint aplica a expansão aditiva do schema com `prisma db push`; em desenvolvimento, execute `npm run db:push` e `npm run db:generate`. Não use uma imagem antiga contra o schema novo: versões antigas não aplicam as permissões por Company.
 
-  <img src="public/logo.png" alt="SupaPanel" width="120" />
-  <h1>SupaPanel</h1>
-  <p><strong>Várias instâncias Supabase self-hosted. Um único painel.</strong></p>
-
-  [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-  [![Docker Compose](https://img.shields.io/badge/Docker-Compose-blue.svg)](docker-compose.yml)
-
-  <img src="public/demo.png" alt="Novo painel SupaPanel com busca, filtros e gerenciamento de instâncias" width="100%" />
-</div>
 
 Crie e gerencie instâncias Supabase independentes no mesmo servidor, sem montar manualmente uma stack para cada projeto. Cada instância tem seu próprio PostgreSQL, Auth, Storage, Realtime, Edge Functions, Studio, credenciais, volumes e rede privada.
 
@@ -50,9 +60,9 @@ Crie e gerencie instâncias Supabase independentes no mesmo servidor, sem montar
 - Criação com download automático do template e geração criptográfica de credenciais.
 - Domínios separados para API e Studio, com instruções de **CNAME** prontas para copiar.
 - **Conexão direta, Session Pooler e Transaction Pooler**: URI, host, porta, banco, usuário e senha, com botões de cópia.
-- Conexões calculadas a partir do Compose salvo: distingue a rede privada Docker das portas realmente publicadas.
+- Conexões calculadas a partir do Compose salvo e verificadas no Docker: publicação de portas pela UI, com estado ativo ou aguardando implantação.
 - Salvar e implantar, pausar preservando dados e excluir mediante confirmação pelo nome.
-- Studio protegido pelo gateway e operações restritas ao proprietário da instância.
+- Studio protegido pelo gateway e operações autorizadas pelos papéis da Company.
 
 ## Instalar no Dokploy
 
@@ -111,9 +121,18 @@ Abra **Instância → Credenciais → Conectar ao banco**:
 
 A interface mostra a URI e cada parâmetro separadamente, com senha oculta e botões para copiar. Caracteres especiais da senha são codificados na URI. As informações refletem a configuração salva; mudanças precisam ser implantadas.
 
-No Dokploy, por padrão, SQL está disponível apenas para containers na rede privada da instância. O domínio HTTPS da API/Studio **não publica PostgreSQL**. Para um cliente externo, configure acesso TCP ou um túnel separadamente. A opção de porta publicada só aparece quando ela existe no Compose; informe o hostname/IP real do servidor. HTTPS no proxy não habilita TLS para PostgreSQL.
+No Dokploy, SQL começa disponível apenas na rede privada da instância. Para conectar um cliente externo, abra **Credenciais → Expor conexões no host**:
 
-<img src="public/connections.png" alt="Credenciais com conexão direta e poolers, parâmetros de acesso e cópia da URI" width="100%" />
+1. Ative Conexão direta, Session Pooler e/ou Transaction Pooler e escolha uma porta diferente para cada conexão e instância.
+2. Selecione **Somente servidor / túnel SSH** (`127.0.0.1`) ou **Acesso remoto** (`0.0.0.0`). Para acesso remoto, restrinja os IPs de origem no firewall do servidor/provedor.
+3. Use **Salvar e implantar** para aplicar agora, ou **Salvar portas** para preparar uma implantação posterior. A aplicação pode reiniciar o banco e o pooler.
+4. Escolha **Porta publicada no servidor** na origem da conexão e copie a URI. No acesso remoto, informe o IP ou hostname DNS do servidor, sem `https://`.
+
+O painel verifica conflitos com portas reservadas por outras instâncias, mesmo paradas, e containers em execução. Processos fora do Docker podem causar conflitos detectados na implantação. O indicador confirma o mapeamento ativo no Docker; não testa firewall, conectividade externa ou autenticação SQL. Desmarcar uma conexão remove sua publicação após implantar novamente.
+
+O domínio HTTPS da API/Studio **não publica PostgreSQL** nem habilita TLS no banco. Um hostname DNS pode substituir o IP na conexão TCP, mas a porta continua necessária. A publicação não configura o firewall automaticamente. Instâncias com arquivos Compose override precisam consolidar seus mapeamentos no arquivo principal antes de gerenciar portas pela UI.
+
+<img src="public/host-ports.png" alt="Credenciais com conexão direta e poolers, parâmetros de acesso e cópia da URI" width="100%" />
 
 ## Versão do Supabase
 
@@ -141,7 +160,7 @@ Novas instâncias usam o commit oficial [`9e225a2`](https://github.com/supabase/
 - **Salvar e implantar:** aplica a configuração e aguarda a inicialização dos serviços.
 - **Excluir:** remove containers, volumes e arquivos permanentemente. Requer digitar o nome da instância.
 - O status do dashboard indica a última operação realizada pelo painel.
-- Faça backup do banco de metadados, de `${DATA_PATH}/projects` e dos volumes Docker de cada instância, incluindo `<slug>_postgres-data`.
+- Faça backup do banco de metadados, de `${DATA_PATH}/projects` e dos volumes Docker de cada instância, incluindo `<slug>_postgres-data` e `<slug>_storage-data` nas novas stacks.
 - Cada instância executa uma stack completa; dimensione memória, CPU e disco para a quantidade de projetos.
 
 ## VPS sem Dokploy

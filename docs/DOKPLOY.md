@@ -34,13 +34,13 @@ Ao mudar somente o IP do servidor, atualize o A/AAAA central. Ao mudar o própri
 
 Na aba Credenciais, escolha Conexão direta, Session Pooler ou Transaction Pooler. Os dados vêm do Compose salvo, incluindo nomes reais dos containers e portas publicadas. Você pode copiar a URI completa ou host, porta, banco, usuário e senha separadamente.
 
-No Dokploy padrão, as três opções são privadas, acessíveis por containers conectados à rede da instância. Para acesso externo, configure TCP/túnel separadamente. Somente quando houver uma porta publicada no Compose a interface oferece essa origem; se necessário, informe o hostname/IP real do servidor. O domínio CNAME/HTTPS do Studio ou da API não fornece conexão SQL.
+No Dokploy padrão, as três opções são privadas, acessíveis por containers conectados à rede da instância. Use **Credenciais → Expor conexões no host** para ativar as portas desejadas, escolher números exclusivos por instância e selecionar acesso remoto ou somente servidor/túnel SSH. **Salvar e implantar** aplica o Compose e pode reiniciar banco/pooler; **Salvar portas** deixa a aplicação pendente. A UI verifica os mapeamentos ativos no Docker. Para acesso remoto, informe o hostname/IP real do servidor e restrinja os IPs no firewall. Desmarque e implante novamente para remover a publicação. O domínio CNAME/HTTPS do Studio ou da API não fornece conexão SQL.
 
 ## Múltiplas instâncias
 
 Cada projeto criado pelo painel é uma stack Compose independente no mesmo Docker daemon, com nome único, rede privada, volumes e segredos próprios. Essas stacks são gerenciadas pelo SupaPanel, não cadastradas como aplicações separadas no Dokploy.
 
-Somente Kong entra na rede externa `dokploy-network`. Postgres, Auth, Studio, Storage, Realtime e demais serviços permanecem na rede do projeto. Não são publicadas portas do Supabase no host no modo Dokploy. API e Studio são roteados por labels Traefik exclusivos de cada projeto; ambos passam por Kong, que protege o dashboard com usuário e senha. O Studio também pode ser aberto no domínio da API.
+Somente Kong entra na rede externa `dokploy-network`. Postgres, Auth, Studio, Storage, Realtime e demais serviços permanecem na rede do projeto. Por padrão, não são publicadas portas do Supabase no host no modo Dokploy. A publicação SQL é opcional e gerenciada na aba Credenciais, diretamente no Compose da instância, sem alterar as portas internas ou as redes. API e Studio são roteados por labels Traefik exclusivos de cada projeto; ambos passam por Kong, que protege o dashboard com usuário e senha. O Studio também pode ser aberto no domínio da API.
 
 A configuração padrão não publica acesso TCP externo ao PostgreSQL. As aplicações podem usar a API HTTPS; acesso SQL direto exige uma configuração de rede/túnel separada. O número de instâncias depende da memória, CPU e disco disponíveis: cada instância executa a stack completa.
 
@@ -50,7 +50,7 @@ Alterar domínios/variáveis salva a configuração; **Salvar e implantar** recr
 
 `DATA_PATH` deve ser um caminho absoluto **idêntico no host e dentro do container**. Isso é necessário porque o painel usa o socket Docker do host e os serviços Supabase montam arquivos relativos ao Compose gerado. Não substitua esse bind por um volume nomeado ou por `/data` apenas dentro do painel. Escolha um caminho exclusivo se instalar mais de um SupaPanel.
 
-O socket Docker concede ao painel controle administrativo do host. Restrinja o acesso ao painel. O banco de metadados persiste em `panel-database`; os arquivos/configurações e Storage das instâncias ficam em `${DATA_PATH}/projects`; cada PostgreSQL usa um volume Docker `<slug>_postgres-data`, além dos volumes auxiliares definidos pelo template. Faça backup do banco de metadados, dos diretórios e de todos os volumes das instâncias. Remover apenas o serviço do painel no Dokploy não remove as stacks Supabase.
+O socket Docker concede ao painel controle administrativo do host. Restrinja o acesso ao painel. O banco de metadados persiste em `panel-database`; os arquivos/configurações das instâncias ficam em `${DATA_PATH}/projects`; novas instâncias usam `<slug>_storage-data` para arquivos Storage, e as antigas preservam o bind original. Cada PostgreSQL usa um volume Docker `<slug>_postgres-data`, além dos volumes auxiliares definidos pelo template. Faça backup do banco de metadados, dos diretórios e de todos os volumes das instâncias. Remover apenas o serviço do painel no Dokploy não remove as stacks Supabase.
 
 ## Versões e atualização
 

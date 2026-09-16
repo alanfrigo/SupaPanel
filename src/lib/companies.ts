@@ -26,11 +26,15 @@ export function companyAccess(userId: string, action: CompanyAction = 'read') {
   return { members: { some: { userId, role: { in: allowedRoles(action) } } } }
 }
 
-export async function findInstance(id: string, userId: string, action: CompanyAction = 'operate') {
+export async function findInstance(id: string, userId: string, action: CompanyAction = 'operate', allowFailed = false) {
   // Also adopts installations reached by old bookmarked URLs before visiting the dashboard.
   await adoptLegacyProjects(userId)
+  if (action === 'operate') {
+    const busy = await prisma.branchJob.findFirst({ where: { OR: [{ sourceId: id }, { targetId: id }], AND: [{ OR: [{ status: { in: ['queued', 'running'] } }, { pausedServices: { isEmpty: false } }] }] } })
+    if (busy) return null
+  }
   return prisma.project.findFirst({
-    where: { id, branch: { project: { company: companyAccess(userId, action) } } },
+    where: { id, ...(action === 'operate' ? { status: { notIn: allowFailed ? ['provisioning'] : ['provisioning', 'failed'] } } : {}), branch: { project: { company: companyAccess(userId, action) } } },
     include: { branch: { include: { project: { include: { company: { select: { id: true, name: true } } } } } } },
   })
 }

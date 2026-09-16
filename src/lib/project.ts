@@ -131,7 +131,6 @@ export async function createProject(name: string, userId: string, description?: 
     const initialized = await initializeSupabaseCore()
     if (!initialized.success) throw new Error(initialized.error)
     // Generate unique slug
-    const timestamp = Date.now()
     const slug = `${name.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 40)}-${secret(12)}`
 
     // Create project in database
@@ -147,11 +146,32 @@ export async function createProject(name: string, userId: string, description?: 
     })
 
     createdId = project.id
+    createdDir = path.join(getProjectsBasePath(), slug)
+    await provisionProjectFiles(project)
+
+    return { success: true, project }
+  } catch (error) {
+    if (createdId) await prisma.$transaction(async tx => {
+      const branch = await tx.branch.findUnique({ where: { instanceId: createdId } })
+      await tx.project.delete({ where: { id: createdId } })
+      if (branch) await tx.managedProject.delete({ where: { id: branch.projectId } })
+    }).catch(() => {})
+    if (createdDir) await fs.rm(createdDir, { recursive: true, force: true })
+    console.error('Failed to create project:', error)
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+  }
+}
+
+// Shared by initial projects and queued branch provisioning. Never copies live volumes.
+export async function provisionProjectFiles(project: { id: string; slug: string; name: string }) {
+    const initialized = await initializeSupabaseCore()
+    if (!initialized.success) throw new Error('Não foi possível preparar o template Supabase.')
+    const { slug, name } = project
+    const timestamp = Date.now()
     // Create project directory
     const projectDir = path.join(getProjectsBasePath(), slug)
     const coreDockerDir = path.join(getCoreBasePath(), 'releases', supabaseRef(), 'docker')
 
-    createdDir = projectDir
     await fs.cp(coreDockerDir, path.join(projectDir, 'docker'), { recursive: true })
     const dockerComposeFile = path.join(projectDir, 'docker', 'docker-compose.yml')
     await fs.writeFile(dockerComposeFile, prepareCompose(await fs.readFile(dockerComposeFile, 'utf8'), slug))
@@ -248,18 +268,7 @@ export async function createProject(name: string, userId: string, description?: 
       })
     }
 
-    return { success: true, project }
-  } catch (error) {
-    if (createdId) await prisma.$transaction(async tx => {
-      const branch = await tx.branch.findUnique({ where: { instanceId: createdId } })
-      await tx.project.delete({ where: { id: createdId } })
-      if (branch) await tx.managedProject.delete({ where: { id: branch.projectId } })
-    }).catch(() => {})
-    if (createdDir) await fs.rm(createdDir, { recursive: true, force: true })
-    console.error('Failed to create project:', error)
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
-  }
-}
+ }
 
 export async function updateProjectEnvVars(projectId: string, envVars: Record<string, string>) {
   try {
@@ -432,13 +441,17 @@ export async function deleteProject(projectId: string) {
       throw new Error('Project not found')
     }
 
+    const branch = await prisma.branch.findUnique({ where: { instanceId: projectId } })
+    if (branch?.name === 'main' && await prisma.branch.count({ where: { projectId: branch.projectId } }) > 1) throw new Error('Exclua as branches adicionais antes de excluir main.')
     const projectDir = path.join(getProjectsBasePath(), project.slug)
     const dockerDir = path.join(projectDir, 'docker')
 
     // Step 1: Stop and remove Docker containers
     try {
       console.log(`Stopping Docker containers for project ${project.slug}...`)
-      await execAsync('docker compose down --volumes --remove-orphans', {
+      const filesExist = await fs.access(path.join(dockerDir, 'docker-compose.yml')).then(() => true, () => false)
+      if (!filesExist && project.status !== 'failed') throw new Error('Compose not found')
+      if (filesExist) await execAsync('docker compose down --volumes --remove-orphans', {
         cwd: dockerDir,
         timeout: 120000, // 2 minutes timeout
         maxBuffer: 1024 * 1024 * 5 // 5MB buffer
@@ -475,6 +488,7 @@ export async function deleteProject(projectId: string) {
       // Delete the project itself
       await prisma.$transaction(async tx => {
         const branch = await tx.branch.findUnique({ where: { instanceId: projectId } })
+        await tx.branchJob.deleteMany({ where: { OR: [{ targetId: projectId }, { sourceId: projectId }] } })
         await tx.project.delete({ where: { id: projectId } })
         if (branch && await tx.branch.count({ where: { projectId: branch.projectId } }) === 0) {
           await tx.managedProject.delete({ where: { id: branch.projectId } })

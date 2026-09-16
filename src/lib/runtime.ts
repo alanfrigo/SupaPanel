@@ -72,13 +72,16 @@ export function prepareCompose(
     if (dokploy) delete service.ports;
   }
   // Docker-managed, per-project data volume avoids host UID/permission mismatches.
-  compose.volumes = { ...compose.volumes, "postgres-data": {} };
+  compose.volumes = { ...compose.volumes, "postgres-data": {}, "storage-data": {} };
   compose.services.db.volumes = (compose.services.db.volumes || []).map(
     (volume: string) =>
       typeof volume === "string" && volume.startsWith("./volumes/db/data:")
         ? "postgres-data:/var/lib/postgresql/data"
         : volume,
   );
+  for (const name of ['storage', 'imgproxy']) {
+    if (compose.services[name]) compose.services[name].volumes = (compose.services[name].volumes || []).map((volume: string) => typeof volume === 'string' && volume.startsWith('./volumes/storage:') ? 'storage-data:/var/lib/storage' : volume);
+  }
   const useProxy = dokploy || process.env.SUPAPANEL_MODE === "production";
   compose.networks = {
     default: {},

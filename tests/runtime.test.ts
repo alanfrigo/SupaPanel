@@ -21,6 +21,12 @@ services:
   db:
     image: supabase/postgres:test
     volumes: ["./volumes/db/data:/var/lib/postgresql/data"]
+  storage:
+    image: supabase/storage:test
+    volumes: ["./volumes/storage:/var/lib/storage:z"]
+  imgproxy:
+    image: imgproxy:test
+    volumes: ["./volumes/storage:/var/lib/storage:z"]
   realtime:
     image: supabase/realtime:test
   supavisor:
@@ -49,7 +55,9 @@ test("two instances have isolated names and only the authenticated gateway joins
     a.services.realtime.container_name,
     "realtime-dev.project-a-realtime",
   );
-  assert.deepEqual(a.volumes, { "db-config": {}, "postgres-data": {} });
+  assert.deepEqual(a.services.storage.volumes, ["storage-data:/var/lib/storage"]);
+  assert.deepEqual(a.services.imgproxy.volumes, ["storage-data:/var/lib/storage"]);
+  assert.deepEqual(a.volumes, { "db-config": {}, "postgres-data": {}, "storage-data": {} });
 });
 test("routes use internal gateway port and never expose Studio without Kong auth", () => {
   const result = parse(

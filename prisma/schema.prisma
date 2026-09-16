@@ -164,3 +164,23 @@ model Branch {
   @@unique([projectId, name])
   @@map("branches")
 }
+
+// Persistent manual provisioning queue. GitHub can enqueue this same command later.
+model BranchJob {
+  id String @id @default(uuid())
+  projectId String
+  sourceId String
+  targetId String @unique
+  requestedBy String
+  mode String
+  schemas String[]
+  pausedServices String[] @default([])
+  status String @default("queued")
+  stage String @default("Na fila")
+  error String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([status, createdAt])
+  @@index([sourceId, status])
+  @@map("branch_jobs")
+}

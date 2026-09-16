@@ -1,4 +1,5 @@
 "use client";
+import BranchSwitcher from "@/components/dashboard/BranchSwitcher";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -186,6 +187,7 @@ export default function ConfigureProjectPage() {
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-5 py-10">
+        <div className="mb-6"><BranchSwitcher instanceId={String(id)} page="configure" disabled={dirty} /></div>
         {project?.branch && <nav aria-label="Contexto do projeto" className="mb-6 flex flex-wrap gap-2 text-sm text-muted-foreground">
           <Link className="hover:text-primary" href={`/dashboard?companyId=${project.branch.project.company.id}`}>{project.branch.project.company.name}</Link>
           <span>/</span><span>{project.branch.project.name}</span><span>/</span>

@@ -27,12 +27,14 @@ interface Project {
   domain?: string;
   studioDomain?: string;
   createdAt: string;
-  branch?: { name: string; project: { company: { id: string; name: string } } };
+  branch?: { name: string; project: { id: string; company: { id: string; name: string } } };
 }
 const statuses: Record<string, string> = {
   active: "Em execução",
   stopped: "Não implantado",
   paused: "Pausado",
+  provisioning: "Criando branch",
+  failed: "Falha na criação",
 };
 
 export default function DashboardPage() {
@@ -105,7 +107,8 @@ export default function DashboardPage() {
     void refresh(controller.signal);
     return () => controller.abort();
   }, [refresh]);
-  const visible = projects.filter(
+  const roots = projects.filter(p => !p.branch || p.branch.name === 'main');
+  const visible = roots.filter(
     (p) =>
       (filter === "all" || p.status === filter) &&
       `${p.name} ${p.description || ""} ${p.domain || ""}`
@@ -132,7 +135,7 @@ export default function DashboardPage() {
             className="flex items-center gap-3 rounded-md border border-primary/15 bg-primary/10 px-3 py-2.5 text-sm text-primary"
           >
             <Database size={16} />
-            Projetos<span className="ml-auto text-xs">{projects.length}</span>
+            Projetos<span className="ml-auto text-xs">{roots.length}</span>
           </Link>
           {installationAdmin && <Link
             href="/dashboard/settings"
@@ -218,7 +221,7 @@ export default function DashboardPage() {
         </div>
         <div className="my-8 grid grid-cols-3 divide-x rounded-lg border bg-card">
           {[
-            [projects.length, "Projetos", Database],
+            [roots.length, "Projetos", Database],
             [
               projects.filter((p) => p.status === "active").length,
               "Implantadas",
@@ -325,12 +328,12 @@ export default function DashboardPage() {
                   <Link
                     aria-disabled={!canOperate}
                     onClick={e => { if (!canOperate) e.preventDefault(); }}
-                    href={canOperate ? `/dashboard/projects/${p.id}/database` : "#"}
+                    href={canOperate ? `/dashboard/projects/${p.id}/branches` : "#"}
                     className="block truncate text-lg font-medium tracking-tight hover:text-primary"
                   >
                     {p.name}
                   </Link>
-                  <span className="mt-2 inline-block rounded border px-2 py-0.5 font-mono text-xs text-primary">{p.branch?.name || "main"}</span>
+                  <span className="mt-2 inline-block rounded border px-2 py-0.5 font-mono text-xs text-primary">{projects.filter(b => b.branch?.project.id === p.branch?.project.id).length || 1} branches</span>
                   <p className="mt-1 line-clamp-2 min-h-10 text-sm text-muted-foreground">
                     {p.description || "Instância Supabase independente"}
                   </p>
@@ -345,10 +348,10 @@ export default function DashboardPage() {
                   <Link
                     aria-disabled={!canOperate}
                     onClick={e => { if (!canOperate) e.preventDefault(); }}
-                    href={canOperate ? `/dashboard/projects/${p.id}/database` : "#"}
+                    href={canOperate ? `/dashboard/projects/${p.id}/branches` : "#"}
                     className="flex items-center gap-2 text-xs font-medium hover:text-primary"
                   >
-                    {canOperate ? "Abrir main" : "Somente visualização"}
+                    {canOperate ? "Abrir branches" : "Somente visualização"}
                     <ArrowUpRight size={14} />
                   </Link>
                 </div>

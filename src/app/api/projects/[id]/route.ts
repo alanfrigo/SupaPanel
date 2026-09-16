@@ -30,7 +30,7 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
       )
     }
 
-    if (!await findInstance(id, session.user.id)) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+    if (!await findInstance(id, session.user.id, 'operate', true)) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
 
     const result = await deleteProject(id)
 
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   const session = await validateSession(request.cookies.get('session')?.value || '')
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
-  const project = await findInstance(id, session.user.id)
+  const project = await findInstance(id, session.user.id, 'read')
   if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
   return NextResponse.json({ project, dnsTarget: await getDnsTarget(), proxyMode: process.env.PROXY_MODE || 'standalone' })
 }

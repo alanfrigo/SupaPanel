@@ -1,4 +1,5 @@
-import { isDokploy, projectsPath, routeCompose } from './runtime'
+import { editCompose } from './compose-file'
+import { isDokploy, routeCompose } from './runtime'
 import { promises as fs } from 'fs'
 import * as path from 'path'
 
@@ -31,8 +32,7 @@ interface TraefikConfig {
 export async function generateProjectTraefikConfig(config: TraefikConfig): Promise<void> {
   const { projectSlug, domain, studioDomain } = config
   if (isDokploy()) {
-    const composePath = path.join(projectsPath(), projectSlug, 'docker', 'docker-compose.yml')
-    await fs.writeFile(composePath, routeCompose(await fs.readFile(composePath, 'utf8'), projectSlug, domain, studioDomain || ''))
+    await editCompose(projectSlug, source => routeCompose(source, projectSlug, domain, studioDomain || ''))
     return
   }
   const kongPort = 8000

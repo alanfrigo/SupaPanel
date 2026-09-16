@@ -1,6 +1,6 @@
 # Proposta: Studio unificado no SupaPanel
 
-Status: desenvolvimento iniciado em 16/09/2026. Primeira entrega implementa Companies, membros, agrupamento de projetos e branch `main`, com adoção compatível das instâncias existentes. A segunda entrega adiciona banco integrado: tabelas, CRUD de registros e SQL. Criação de branches adicionais, jobs e GitHub ainda não estão implementados.
+Status: desenvolvimento iniciado em 16/09/2026. Primeira entrega implementa Companies, membros, agrupamento de projetos e branch `main`, com adoção compatível das instâncias existentes. A segunda entrega adiciona banco integrado: tabelas, CRUD de registros e SQL. A terceira entrega adiciona branches isoladas, clonagem de estrutura/dados/Auth/Storage local e jobs persistentes. GitHub e promoção/merge continuam futuros. Consulte [Branches](BRANCHES.md).
 
 ## Experiência desejada
 
@@ -10,7 +10,7 @@ Exemplo: Company Minha Empresa → Projeto Loja → main (produção), developme
 
 ## Estado atual e viabilidade
 
-O modelo Prisma `Project` representa atualmente uma instância: possui domínios, variáveis e ciclo de vida da stack. Ainda não existe agrupamento lógico de instâncias por projeto nem histórico de branches/migrações.
+O modelo Prisma `Project` representa atualmente uma instância: possui domínios, variáveis e ciclo de vida da stack. O agrupamento lógico já usa ManagedProject e Branch; histórico de migrações e promoção ainda não foram implementados.
 
 O Studio self-hosted suporta apenas um projeto. Branching e a API de gerenciamento da plataforma não estão incluídos nessa distribuição. Fonte: [documentação oficial de self-hosting](https://supabase.com/docs/guides/self-hosting).
 

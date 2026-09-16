@@ -14,7 +14,8 @@
     "db:reset": "prisma db push --force-reset",
     "type-check": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
-    "test:database": "bash scripts/test-database-editor.sh"
+    "test:database": "bash scripts/test-database-editor.sh",
+    "test:branches": "bash scripts/test-branches.sh"
   },
   "dependencies": {
     "@prisma/client": "^6.19.1",

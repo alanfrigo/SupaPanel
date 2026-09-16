@@ -1,4 +1,5 @@
 "use client";
+import BranchSwitcher from "@/components/dashboard/BranchSwitcher";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
@@ -253,6 +254,7 @@ function DatabaseEditor({ id }: { id: string }) {
         </Link>
       </header>
       <main className="mx-auto max-w-[1600px] p-5 md:p-8">
+        <div className="mb-6"><BranchSwitcher instanceId={String(id)} page="database" disabled={busy || !!editor} /></div>
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <h1 className="flex items-center gap-3 text-2xl font-semibold">
             <Database className="text-primary" />

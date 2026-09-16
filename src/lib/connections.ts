@@ -13,6 +13,7 @@ export interface Connection {
   username: string;
   password: string;
   published?: { port: string; bind: string };
+  publicationState?: "active" | "pending" | "private" | "unknown";
 }
 export interface ConnectionInfo {
   network: string;

@@ -1,3 +1,4 @@
+import { isDokploy } from '@/lib/runtime'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { validateSession } from '@/lib/auth'
@@ -30,6 +31,8 @@ export async function GET() {
         })
 
         return NextResponse.json({
+            managedExternally: isDokploy(),
+            panelUrl: process.env.NEXTAUTH_URL || null,
             domain: domainSetting?.value || null,
             verified: verifiedSetting?.value === 'true',
         })
@@ -44,6 +47,7 @@ export async function GET() {
  * Set or update the panel domain
  */
 export async function PUT(request: NextRequest) {
+    if (isDokploy()) return NextResponse.json({ error: 'Manage the panel domain in Dokploy → Domains (service panel, port 3000).' }, { status: 409 })
     try {
         // Validate session
         const cookieStore = await cookies()
@@ -107,6 +111,7 @@ export async function PUT(request: NextRequest) {
  * Remove the panel domain
  */
 export async function DELETE() {
+    if (isDokploy()) return NextResponse.json({ error: 'Manage the panel domain in Dokploy → Domains (service panel, port 3000).' }, { status: 409 })
     try {
         // Validate session
         const cookieStore = await cookies()

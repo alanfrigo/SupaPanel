@@ -20,7 +20,7 @@ export default function CreateProjectPage() {
   const handleNameChange = (e: any) => {
     setName(e.target.value)
   }
-  
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleDescriptionChange = (e: any) => {
     setDescription(e.target.value)
@@ -66,16 +66,16 @@ export default function CreateProjectPage() {
       <header className="border-b">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <Image 
-              src="/logo.png" 
-              alt="SupaPanel" 
-              width={150} 
-              height={150}
+            <Image
+              src="/logo.png"
+              alt="SupaPanel"
+              width={110}
+              height={48}
               className="object-contain"
             />
           </div>
           <Link href="/dashboard">
-            <Button variant="outline">Back to Dashboard</Button>
+            <Button variant="outline">Voltar às instâncias</Button>
           </Link>
         </div>
       </header>
@@ -83,17 +83,17 @@ export default function CreateProjectPage() {
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-2xl mx-auto">
           <div className="mb-8">
-            <h2 className="text-3xl font-bold mb-2">Create New Project</h2>
+            <h2 className="text-3xl font-bold mb-2">Nova instância</h2>
             <p className="text-muted-foreground">
-              Set up a new Supabase project with Docker configuration
+              Um Supabase completo, com dados e credenciais independentes.
             </p>
           </div>
 
           <Card>
             <CardHeader>
-              <CardTitle>Project Details</CardTitle>
+              <CardTitle>Detalhes da instância</CardTitle>
               <CardDescription>
-                Enter the basic information for your new Supabase project
+                Escolha um nome. Geramos as credenciais e preparamos os serviços para você.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -105,45 +105,46 @@ export default function CreateProjectPage() {
                 )}
 
                 <div className="space-y-2">
-                  <Label htmlFor="name">Project Name *</Label>
+                  <Label htmlFor="name">Nome da instância *</Label>
                   <Input
                     id="name"
                     type="text"
-                    placeholder="Enter project name"
+                    placeholder="Ex.: App de clientes"
                     value={name}
                     onChange={handleNameChange}
+                    maxLength={80}
+                    autoFocus
                     required
                   />
                   <p className="text-sm text-muted-foreground">
-                    A unique identifier will be generated automatically
+                    Um identificador único será gerado automaticamente.
                   </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="description">Description (optional)</Label>
+                  <Label htmlFor="description">Descrição (opcional)</Label>
                   <Input
                     id="description"
                     type="text"
-                    placeholder="Brief description of your project"
+                    placeholder="Para que você vai usar esta instância?"
                     value={description}
                     onChange={handleDescriptionChange}
                   />
                 </div>
 
-                <div className="bg-blue-500/10 border border-blue-500/20 text-blue-500 px-4 py-3 rounded">
+                <div className="bg-primary/10 border border-primary/20 text-primary px-4 py-3 rounded">
                   <p className="text-sm">
-                    <strong>Next steps:</strong> After creation, you&apos;ll configure environment variables 
-                    and the system will automatically set up Docker containers for your project.
+                    <strong>Próximo passo:</strong> Configure seu domínio e clique em Salvar e implantar. Na primeira criação, o download do Supabase pode levar alguns minutos.
                   </p>
                 </div>
 
                 <div className="flex gap-4">
                   <Button type="submit" disabled={loading}>
-                    {loading ? 'Creating Project...' : 'Create Project'}
+                    {loading ? 'Preparando instância…' : 'Criar instância'}
                   </Button>
                   <Link href="/dashboard">
                     <Button type="button" variant="outline">
-                      Cancel
+                      Cancelar
                     </Button>
                   </Link>
                 </div>

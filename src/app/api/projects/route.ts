@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
 
     const { name, description = '' } = await request.json()
 
-    if (!name) {
+    if (typeof name !== 'string' || !name.trim() || name.length > 80 || typeof description !== 'string' || description.length > 500) {
       return NextResponse.json(
         { error: 'Project name is required' },
         { status: 400 }

@@ -1,3 +1,4 @@
+import { prisma } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
 import { validateSession } from '@/lib/auth'
 import { deployProject } from '@/lib/project'
@@ -27,6 +28,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         { status: 401 }
       )
     }
+
+    if (!await prisma.project.findFirst({ where: { id, ownerId: session.user.id } })) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
 
     const result = await deployProject(id)
 

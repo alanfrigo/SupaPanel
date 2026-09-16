@@ -29,6 +29,8 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       )
     }
 
+    if (!await prisma.project.findFirst({ where: { id, ownerId: session.user.id } })) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+
     // Fetch project environment variables from database
     const envVars = await prisma.projectEnvVar.findMany({
       where: { projectId: id }
@@ -70,6 +72,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       )
     }
 
+    if (!await prisma.project.findFirst({ where: { id, ownerId: session.user.id } })) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+
     const envVars = await request.json()
 
     if (!envVars || typeof envVars !== 'object') {
@@ -78,6 +82,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         { status: 400 }
       )
     }
+
+    if (!await prisma.project.findFirst({ where: { id, ownerId: session.user.id } })) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
 
     const result = await updateProjectEnvVars(id, envVars)
 

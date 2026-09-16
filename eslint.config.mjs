@@ -14,6 +14,9 @@ const eslintConfig = [
   {
     ignores: [
       "node_modules/**",
+      "supabase-core/**",
+      "supabase-projects/**",
+      "output/**",
       ".next/**",
       "out/**",
       "build/**",

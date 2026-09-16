@@ -63,7 +63,11 @@ Perfect for agencies, development teams, and organizations that need to manage m
 
 ## Quick Start
 
-### Production Deployment
+### Dokploy / Docker Compose
+
+Use the root `docker-compose.yml` to run SupaPanel behind the existing Dokploy proxy, with isolated Supabase stacks and no additional Traefik installation. Follow the [Dokploy installation guide](docs/DOKPLOY.md) for required environment variables, persistence, domains and version limitations.
+
+### Production Deployment (fresh VPS)
 
 Deploy SupaPanel on any fresh Linux server (Ubuntu 22.04+, Debian 11+):
 
@@ -125,8 +129,8 @@ npm run dev
 
 1. Access the panel at `http://YOUR_IP:3000`
 2. Create your admin account (first user registration only)
-3. Click **Initialize** to set up Supabase core files
-4. Create your first Supabase project
+3. Create your first Supabase instance; the pinned template is initialized automatically
+4. Configure its domains and click **Save and deploy**
 
 ### Creating Projects
 

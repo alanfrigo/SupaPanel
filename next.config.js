@@ -1,20 +1,6 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-  // Enable standalone output for Docker deployment
-  // Note: This is ignored during development (npm run dev)
+module.exports = {
   output: 'standalone',
-
-  typescript: {
-    ignoreBuildErrors: false,
-  },
-  webpack: (config) => {
-    // Exclude supabase directories from build
-    config.module.rules.push({
-      test: /\.tsx?$/,
-      exclude: [/supabase-core/, /supabase-projects/],
-    })
-    return config
-  },
+  outputFileTracingRoot: __dirname,
+  turbopack: { root: __dirname },
 }
-
-module.exports = nextConfig

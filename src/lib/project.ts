@@ -1,55 +1,18 @@
 import { promises as fs } from 'fs'
 import * as path from 'path'
-import { exec } from 'child_process'
+import { exec, execFile } from 'child_process'
 import { promisify } from 'util'
 import { prisma } from './db'
 import { removeProjectTraefikConfig } from './traefik'
 
+import { corePath, projectsPath, secret, jwt, serializeEnv, prepareCompose, supabaseRef, isDokploy } from './runtime'
+
 const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 
-// Environment-aware path helpers
-function getProjectsBasePath(): string {
-  const mode = process.env.SUPAPANEL_MODE || 'development'
-  if (mode === 'production') {
-    // In production (Docker), use DATA_PATH or default to /etc/supapanel
-    const dataPath = process.env.DATA_PATH || '/etc/supapanel'
-    return path.join(dataPath, 'projects')
-  }
-  // In development, use local directory
-  return path.join(process.cwd(), 'supabase-projects')
-}
-
-function getCoreBasePath(): string {
-  const mode = process.env.SUPAPANEL_MODE || 'development'
-  if (mode === 'production') {
-    const dataPath = process.env.DATA_PATH || '/etc/supapanel'
-    return path.join(dataPath, 'core')
-  }
-  return path.join(process.cwd(), 'supabase-core')
-}
-
-// Helper functions for generating secure defaults
-function generateRandomString(length: number): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-  let result = ''
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length))
-  }
-  return result
-}
-
-function generateJWT(role: 'anon' | 'service_role', timestamp: number): string {
-  // Generate a simple JWT-like token (for demo purposes)
-  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
-  const payload = Buffer.from(JSON.stringify({
-    role,
-    iss: 'supabase',
-    iat: Math.floor(timestamp / 1000),
-    exp: Math.floor(timestamp / 1000) + (365 * 24 * 60 * 60) // 1 year
-  })).toString('base64url')
-  const signature = generateRandomString(43) // Mock signature
-  return `${header}.${payload}.${signature}`
-}
+const getProjectsBasePath = projectsPath
+const getCoreBasePath = corePath
+const generateRandomString = secret
 
 // Pre-flight checks for Docker deployment
 async function checkDockerPrerequisites() {
@@ -132,40 +95,44 @@ async function checkInternetConnectivity(): Promise<boolean> {
   return false
 }
 
+let initialization: Promise<{ success: boolean; error?: string }> | undefined
 export async function initializeSupabaseCore() {
-  const coreDir = getCoreBasePath()
-  const projectsDir = getProjectsBasePath()
-
-  try {
-    // Check if directories already exist
-    const coreExists = await fs.access(coreDir).then(() => true).catch(() => false)
-    const projectsExists = await fs.access(projectsDir).then(() => true).catch(() => false)
-
-    // Create supabase-projects directory if it doesn't exist
-    if (!projectsExists) {
-      await fs.mkdir(projectsDir, { recursive: true })
+  if (initialization) return initialization
+  initialization = (async () => {
+    const target = path.join(getCoreBasePath(), 'releases', supabaseRef())
+    try {
+      if (!/^[a-zA-Z0-9._-]+$/.test(supabaseRef())) throw new Error('Invalid Supabase ref')
+      await fs.mkdir(getProjectsBasePath(), { recursive: true })
+      try { await fs.access(path.join(target, 'docker', 'docker-compose.yml')); return { success: true } } catch {}
+      await fs.mkdir(path.dirname(target), { recursive: true })
+      const staging = `${target}.tmp-${secret(12)}`
+      try {
+        await fs.mkdir(staging)
+        await execFileAsync('git', ['init', staging])
+        await execFileAsync('git', ['remote', 'add', 'origin', process.env.SUPABASE_CORE_REPO_URL || 'https://github.com/supabase/supabase'], { cwd: staging })
+        await execFileAsync('git', ['sparse-checkout', 'set', 'docker'], { cwd: staging })
+        await execFileAsync('git', ['fetch', '--filter=blob:none', '--depth', '1', 'origin', supabaseRef()], { cwd: staging, timeout: 300000 })
+        await execFileAsync('git', ['checkout', '--detach', 'FETCH_HEAD'], { cwd: staging, timeout: 120000 })
+        await fs.access(path.join(staging, 'docker', 'docker-compose.yml'))
+        await fs.rename(staging, target)
+      } finally { await fs.rm(staging, { recursive: true, force: true }) }
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Initialization failed' }
     }
-
-    // Clone repository if supabase-core doesn't exist
-    if (!coreExists) {
-      const repoUrl = process.env.SUPABASE_CORE_REPO_URL || 'https://github.com/supabase/supabase'
-
-      // Use shallow clone for faster download
-      await execAsync(`git clone --depth 1 ${repoUrl} supabase-core`)
-    }
-
-    return { success: true }
-  } catch (error) {
-    console.error('Failed to initialize Supabase core:', error)
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
-  }
+  })()
+  try { return await initialization } finally { initialization = undefined }
 }
 
 export async function createProject(name: string, userId: string, description?: string) {
+  let createdId: string | undefined
+  let createdDir: string | undefined
   try {
+    const initialized = await initializeSupabaseCore()
+    if (!initialized.success) throw new Error(initialized.error)
     // Generate unique slug
     const timestamp = Date.now()
-    const slug = `${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${timestamp}`
+    const slug = `${name.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 40)}-${secret(12)}`
 
     // Create project in database
     const project = await prisma.project.create({
@@ -174,78 +141,48 @@ export async function createProject(name: string, userId: string, description?: 
         slug,
         description,
         ownerId: userId,
+        status: 'stopped',
       },
     })
 
+    createdId = project.id
     // Create project directory
     const projectDir = path.join(getProjectsBasePath(), slug)
-    const coreDockerDir = path.join(getCoreBasePath(), 'docker')
+    const coreDockerDir = path.join(getCoreBasePath(), 'releases', supabaseRef(), 'docker')
 
-    // Copy docker folder from supabase-core
-    await fs.mkdir(projectDir, { recursive: true })
-
-    // Use cross-platform copy command
-    const isWindows = process.platform === 'win32'
-    const copyCommand = isWindows
-      ? `xcopy "${coreDockerDir}" "${path.join(projectDir, 'docker')}" /E /I /H /K`
-      : `cp -r "${coreDockerDir}" "${projectDir}/"`
-
-    await execAsync(copyCommand)
-
-    // Customize docker-compose.yml with unique container names
+    createdDir = projectDir
+    await fs.cp(coreDockerDir, path.join(projectDir, 'docker'), { recursive: true })
     const dockerComposeFile = path.join(projectDir, 'docker', 'docker-compose.yml')
-    let dockerComposeContent = await fs.readFile(dockerComposeFile, 'utf8')
-
-    // Replace container names with project-specific names
-    const containerMappings = [
-      { original: 'supabase-studio', replacement: `${slug}-studio` },
-      { original: 'supabase-kong', replacement: `${slug}-kong` },
-      { original: 'supabase-auth', replacement: `${slug}-auth` },
-      { original: 'supabase-rest', replacement: `${slug}-rest` },
-      { original: 'realtime-dev.supabase-realtime', replacement: `realtime-dev.${slug}-realtime` },
-      { original: 'supabase-storage', replacement: `${slug}-storage` },
-      { original: 'supabase-imgproxy', replacement: `${slug}-imgproxy` },
-      { original: 'supabase-meta', replacement: `${slug}-meta` },
-      { original: 'supabase-edge-functions', replacement: `${slug}-edge-functions` },
-      { original: 'supabase-analytics', replacement: `${slug}-analytics` },
-      { original: 'supabase-db', replacement: `${slug}-db` },
-      { original: 'supabase-vector', replacement: `${slug}-vector` },
-      { original: 'supabase-pooler', replacement: `${slug}-pooler` }
-    ]
-
-    // Replace container names in the compose file
-    for (const mapping of containerMappings) {
-      dockerComposeContent = dockerComposeContent.replace(
-        new RegExp(`container_name: ${mapping.original}`, 'g'),
-        `container_name: ${mapping.replacement}`
-      )
-    }
-
-    // Update the compose project name to be unique
-    dockerComposeContent = dockerComposeContent.replace(
-      /^name: supabase$/m,
-      `name: ${slug}`
-    )
-
-
-    // Write the modified docker-compose.yml back
-    await fs.writeFile(dockerComposeFile, dockerComposeContent)
+    await fs.writeFile(dockerComposeFile, prepareCompose(await fs.readFile(dockerComposeFile, 'utf8'), slug))
+    await fs.writeFile(path.join(projectDir, 'supapanel-version.json'), JSON.stringify({ ref: supabaseRef(), createdAt: new Date().toISOString() }, null, 2))
+    const jwtSecret = secret(64)
 
     // Generate unique default port values to prevent conflicts
     const basePort = 8000 + (timestamp % 10000) // Use last 4 digits of timestamp for uniqueness
     const defaultEnvVars = {
       // Secrets - generated random values
       POSTGRES_PASSWORD: generateRandomString(32),
-      JWT_SECRET: generateRandomString(64),
-      ANON_KEY: generateJWT('anon', timestamp),
-      SERVICE_ROLE_KEY: generateJWT('service_role', timestamp),
+      JWT_SECRET: jwtSecret,
+      ANON_KEY: jwt('anon', jwtSecret, timestamp),
+      SERVICE_ROLE_KEY: jwt('service_role', jwtSecret, timestamp),
       DASHBOARD_USERNAME: 'supabase',
       DASHBOARD_PASSWORD: generateRandomString(16),
       SECRET_KEY_BASE: generateRandomString(64),
       VAULT_ENC_KEY: generateRandomString(32),
 
       // Unique ports to prevent conflicts between projects
-      POSTGRES_PORT: (basePort + 2000).toString(),
+      POSTGRES_PORT: '5432',
+      POOLER_HOST_PORT: (basePort + 2000).toString(),
+      PG_META_CRYPTO_KEY: secret(64),
+      REALTIME_DB_ENC_KEY: secret(16),
+      SUPABASE_PUBLISHABLE_KEY: '',
+      SUPABASE_SECRET_KEY: '',
+      GLOBAL_S3_BUCKET: 'storage',
+      STORAGE_TENANT_ID: slug,
+      REGION: 'local',
+      S3_PROTOCOL_ACCESS_KEY_ID: secret(32),
+      S3_PROTOCOL_ACCESS_KEY_SECRET: secret(64),
+      IMGPROXY_AUTO_WEBP: 'true',
       POOLER_PROXY_PORT_TRANSACTION: (basePort + 3000).toString(),
       KONG_HTTP_PORT: basePort.toString(),
       KONG_HTTPS_PORT: (basePort + 443).toString(),
@@ -260,12 +197,12 @@ export async function createProject(name: string, userId: string, description?: 
       POOLER_MAX_CLIENT_CONN: '100',
       POOLER_TENANT_ID: `project-${timestamp}`,
       POOLER_DB_POOL_SIZE: '5',
-      PGRST_DB_SCHEMAS: 'public,storage,graphql_public',
+      PGRST_DB_SCHEMAS: 'public,graphql_public',
       SITE_URL: `http://localhost:${basePort}`,
       ADDITIONAL_REDIRECT_URLS: '',
       JWT_EXPIRY: '3600',
       DISABLE_SIGNUP: 'false',
-      API_EXTERNAL_URL: `http://localhost:${basePort}`,
+      API_EXTERNAL_URL: `http://localhost:${basePort}/auth/v1`,
       MAILER_URLPATHS_CONFIRMATION: '/auth/v1/verify',
       MAILER_URLPATHS_INVITE: '/auth/v1/verify',
       MAILER_URLPATHS_RECOVERY: '/auth/v1/verify',
@@ -282,12 +219,12 @@ export async function createProject(name: string, userId: string, description?: 
       ENABLE_PHONE_SIGNUP: 'true',
       ENABLE_PHONE_AUTOCONFIRM: 'true',
       STUDIO_DEFAULT_ORGANIZATION: 'Default Organization',
-      STUDIO_DEFAULT_PROJECT: 'Default Project',
+      STUDIO_DEFAULT_PROJECT: name,
       STUDIO_PORT: (basePort + 100).toString(),
       SUPABASE_PUBLIC_URL: `http://localhost:${basePort}`,
       IMGPROXY_ENABLE_WEBP_DETECTION: 'true',
       OPENAI_API_KEY: '',
-      FUNCTIONS_VERIFY_JWT: 'false',
+      FUNCTIONS_VERIFY_JWT: 'true',
       LOGFLARE_PUBLIC_ACCESS_TOKEN: generateRandomString(64),
       LOGFLARE_PRIVATE_ACCESS_TOKEN: generateRandomString(64),
       DOCKER_SOCKET_LOCATION: '/var/run/docker.sock',
@@ -297,11 +234,7 @@ export async function createProject(name: string, userId: string, description?: 
 
     // Write initial .env file with unique defaults
     const envFilePath = path.join(projectDir, 'docker', '.env')
-    const envContent = Object.entries(defaultEnvVars)
-      .map(([key, value]) => `${key}=${value}`)
-      .join('\n')
-
-    await fs.writeFile(envFilePath, envContent)
+    await fs.writeFile(envFilePath, serializeEnv(defaultEnvVars), { mode: 0o600 })
 
     // Save environment variables to database
     for (const [key, value] of Object.entries(defaultEnvVars)) {
@@ -316,6 +249,8 @@ export async function createProject(name: string, userId: string, description?: 
 
     return { success: true, project }
   } catch (error) {
+    if (createdId) await prisma.project.delete({ where: { id: createdId } }).catch(() => {})
+    if (createdDir) await fs.rm(createdDir, { recursive: true, force: true })
     console.error('Failed to create project:', error)
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
@@ -331,6 +266,12 @@ export async function updateProjectEnvVars(projectId: string, envVars: Record<st
       throw new Error('Project not found')
     }
 
+    serializeEnv(envVars) // Validate before persisting.
+    const previousJwt = await prisma.projectEnvVar.findUnique({ where: { projectId_key: { projectId, key: 'JWT_SECRET' } } })
+    if (envVars.JWT_SECRET && envVars.JWT_SECRET !== previousJwt?.value) {
+      envVars.ANON_KEY = jwt('anon', envVars.JWT_SECRET)
+      envVars.SERVICE_ROLE_KEY = jwt('service_role', envVars.JWT_SECRET)
+    }
     // Update environment variables in database
     for (const [key, value] of Object.entries(envVars)) {
       await prisma.projectEnvVar.upsert({
@@ -353,11 +294,8 @@ export async function updateProjectEnvVars(projectId: string, envVars: Record<st
     const projectDir = path.join(getProjectsBasePath(), project.slug, 'docker')
     const envFilePath = path.join(projectDir, '.env')
 
-    const envContent = Object.entries(envVars)
-      .map(([key, value]) => `${key}=${value}`)
-      .join('\n')
-
-    await fs.writeFile(envFilePath, envContent)
+    const saved = await prisma.projectEnvVar.findMany({ where: { projectId } })
+    await fs.writeFile(envFilePath, serializeEnv(Object.fromEntries(saved.map(v => [v.key, v.value]))), { mode: 0o600 })
 
     return { success: true }
   } catch (error) {
@@ -377,6 +315,8 @@ export async function deployProject(projectId: string) {
     }
 
     const projectDir = path.join(getProjectsBasePath(), project.slug, 'docker')
+
+    if (isDokploy() && !project.domain && !project.studioDomain) throw new Error('Configure an API or Studio domain before deploying on Dokploy.')
 
     // Run pre-flight checks
     console.log('Running pre-flight checks...')
@@ -411,7 +351,7 @@ export async function deployProject(projectId: string) {
 
       // Start the services
       console.log('Starting Supabase services...')
-      await execAsync('docker compose up -d --remove-orphans', {
+      await execAsync('docker compose up -d --wait --wait-timeout 240 --remove-orphans', {
         cwd: projectDir,
         timeout: 300000, // 5 minute timeout
         maxBuffer: 1024 * 1024 * 10 // 10MB buffer
@@ -434,19 +374,6 @@ export async function deployProject(projectId: string) {
       } else {
         throw new Error(`Docker deployment failed: ${errorMessage}`)
       }
-    }
-
-    // Verify that containers are running
-    try {
-      const { stdout } = await execAsync('docker compose ps --format json', {
-        cwd: projectDir,
-        maxBuffer: 1024 * 1024 * 2 // 2MB buffer for container status
-      })
-      const containers = JSON.parse(`[${stdout.trim().split('\n').join(',')}]`)
-      const runningContainers = containers.filter((c: { State: string }) => c.State === 'running')
-      console.log(`Deployment successful: ${runningContainers.length} containers running`)
-    } catch {
-      console.warn('Could not verify container status, but deployment may have succeeded')
     }
 
     // Update project status
@@ -513,7 +440,7 @@ export async function deleteProject(projectId: string) {
       })
     } catch (dockerError) {
       console.warn('Failed to stop Docker containers (they may not be running):', dockerError)
-      // Continue with deletion even if Docker cleanup fails
+      throw new Error('Container cleanup failed. Project data was preserved; retry after Docker is available.')
     }
 
     // Step 1.5: Remove Traefik configuration
@@ -527,15 +454,10 @@ export async function deleteProject(projectId: string) {
     // Step 2: Remove project directory
     try {
       console.log(`Removing project directory: ${projectDir}`)
-      const isWindows = process.platform === 'win32'
-      const removeCommand = isWindows
-        ? `rmdir /s /q "${projectDir}"`
-        : `rm -rf "${projectDir}"`
-
-      await execAsync(removeCommand, { timeout: 60000 })
+      await fs.rm(projectDir, { recursive: true, force: true })
     } catch (fsError) {
       console.warn('Failed to remove project directory:', fsError)
-      // Continue with database cleanup even if filesystem cleanup fails
+      throw new Error('Could not remove project files; database record was preserved.')
     }
 
     // Step 3: Clean up database records

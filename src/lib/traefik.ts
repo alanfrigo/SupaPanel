@@ -1,3 +1,4 @@
+import { isDokploy, projectsPath, routeCompose } from './runtime'
 import { promises as fs } from 'fs'
 import * as path from 'path'
 
@@ -28,7 +29,14 @@ interface TraefikConfig {
  * Supports separate domains for API (Kong) and Studio
  */
 export async function generateProjectTraefikConfig(config: TraefikConfig): Promise<void> {
-  const { projectSlug, domain, studioDomain, kongPort, studioPort } = config
+  const { projectSlug, domain, studioDomain } = config
+  if (isDokploy()) {
+    const composePath = path.join(projectsPath(), projectSlug, 'docker', 'docker-compose.yml')
+    await fs.writeFile(composePath, routeCompose(await fs.readFile(composePath, 'utf8'), projectSlug, domain, studioDomain || ''))
+    return
+  }
+  const kongPort = 8000
+  const studioPort = 8000
 
   // Build routers section based on which domains are configured
   let routersConfig = ''
@@ -62,10 +70,7 @@ export async function generateProjectTraefikConfig(config: TraefikConfig): Promi
       loadBalancer:
         servers:
           - url: "http://${projectSlug}-kong:${kongPort}"
-        healthCheck:
-          path: /health
-          interval: 30s
-          timeout: 5s`
+`
   }
 
   // Studio domain configuration
@@ -97,7 +102,7 @@ export async function generateProjectTraefikConfig(config: TraefikConfig): Promi
     ${projectSlug}-studio:
       loadBalancer:
         servers:
-          - url: "http://${projectSlug}-studio:${studioPort}"`
+          - url: "http://${projectSlug}-kong:${studioPort}"`
   }
 
   const traefikConfig = `# Auto-generated Traefik routing for project: ${projectSlug}
@@ -149,6 +154,10 @@ export async function updateProjectDomain(
  * Remove Traefik configuration for a deleted project
  */
 export async function removeProjectTraefikConfig(projectSlug: string): Promise<void> {
+  if (isDokploy()) {
+    await generateProjectTraefikConfig({ projectSlug, domain: '', studioDomain: '', kongPort: 8000, studioPort: 8000 })
+    return
+  }
   const configPath = path.join(getTraefikDynamicPath(), `${projectSlug}.yml`)
 
   try {

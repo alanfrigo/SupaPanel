@@ -16,7 +16,7 @@ echo "Running database migrations..."
 # We use db push for now to ensure schema is in sync. 
 # --skip-generate is needed because the client was already generated during build,
 # and the nextjs user doesn't have write permissions to regenerate it.
-npx prisma db push --accept-data-loss --skip-generate
+npx prisma db push --skip-generate
 
 # Execute the main command
 echo "Starting application..."

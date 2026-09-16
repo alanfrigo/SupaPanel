@@ -1,5 +1,5 @@
 # === Build Stage ===
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -28,13 +28,13 @@ ENV NODE_ENV=production
 RUN npm run build
 
 # === Production Stage ===
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 
 # Install runtime dependencies
 # Added: prisma for migrations
-RUN apk add --no-cache libc6-compat openssl git curl docker-cli
+RUN apk add --no-cache libc6-compat openssl git curl docker-cli docker-cli-compose
 
 # Install global prisma for the entrypoint script (pinned to match project version)
 RUN npm install -g prisma@6.19.1

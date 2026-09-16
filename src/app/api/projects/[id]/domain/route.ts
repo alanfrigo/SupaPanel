@@ -1,3 +1,4 @@
+import { updateProjectEnvVars } from '@/lib/project'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { validateSession } from '@/lib/auth'
@@ -25,6 +26,7 @@ export async function GET(
         }
 
         const { id } = await params
+        if (!await prisma.project.findFirst({ where: { id, ownerId: session.user.id } })) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
 
         const project = await prisma.project.findUnique({
             where: { id },
@@ -74,10 +76,14 @@ export async function PUT(
         }
 
         const { id } = await params
-        const { domain, studioDomain } = await request.json()
+        if (!await prisma.project.findFirst({ where: { id, ownerId: session.user.id } })) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+        const input = await request.json()
+        if ((input.domain !== undefined && typeof input.domain !== 'string') || (input.studioDomain !== undefined && typeof input.studioDomain !== 'string')) return NextResponse.json({ error: 'Invalid domains' }, { status: 400 })
+        const domain = input.domain?.trim().toLowerCase()
+        const studioDomain = input.studioDomain?.trim().toLowerCase()
 
         // Validate domain format
-        const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-_.]*\.[a-zA-Z]{2,}$/
+        const domainRegex = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/
 
         if (domain && !domainRegex.test(domain)) {
             return NextResponse.json({ error: 'Invalid API domain format' }, { status: 400 })
@@ -107,7 +113,7 @@ export async function PUT(
         if (domain) {
             const existingApiProject = await prisma.project.findFirst({
                 where: {
-                    domain,
+                    OR: [{ domain }, { studioDomain: domain }],
                     id: { not: id },
                 },
             })
@@ -120,7 +126,7 @@ export async function PUT(
         if (studioDomain) {
             const existingStudioProject = await prisma.project.findFirst({
                 where: {
-                    studioDomain,
+                    OR: [{ domain: studioDomain }, { studioDomain }],
                     id: { not: id },
                 },
             })
@@ -171,6 +177,10 @@ export async function PUT(
             })
         }
 
+        if (finalDomain) {
+            const result = await updateProjectEnvVars(id, { API_EXTERNAL_URL: `https://${finalDomain}/auth/v1`, SUPABASE_PUBLIC_URL: `https://${finalDomain}` })
+            if (!result.success) throw new Error(result.error)
+        }
         // Build response message
         const messages: string[] = []
         if (domain) {
@@ -190,7 +200,7 @@ export async function PUT(
             verified: updatedProject.domainVerified,
             studioDomain: updatedProject.studioDomain,
             studioVerified: updatedProject.studioDomainVerified,
-            message: messages.join('. ') || 'Domains updated successfully',
+            message: (messages.join('. ') || 'Domains updated successfully') + '. Deploy the project to apply routing and URL changes.',
         })
     } catch (error) {
         console.error('Set domain error:', error)
@@ -219,6 +229,7 @@ export async function DELETE(
         }
 
         const { id } = await params
+        if (!await prisma.project.findFirst({ where: { id, ownerId: session.user.id } })) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
 
         const project = await prisma.project.findUnique({
             where: { id },

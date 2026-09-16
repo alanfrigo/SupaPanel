@@ -27,25 +27,25 @@
 }
 
 .dark {
-  --background: 0 0% 9%; /* #171717 */
+  --background: 0 0% 7%; /* #171717 */
   --foreground: 0 0% 98%;
-  --card: 0 0% 12%; /* #1f1f1f */
+  --card: 0 0% 10%; /* #1f1f1f */
   --card-foreground: 0 0% 98%;
   --popover: 0 0% 20%;
   --popover-foreground: 0 0% 98%;
-  --primary: 0 0% 90%;
-  --primary-foreground: 0 0% 20%;
+  --primary: 153 60% 53%;
+  --primary-foreground: 155 45% 8%;
   --secondary: 0 0% 27%;
   --secondary-foreground: 0 0% 98%;
-  --muted: 0 0% 27%;
+  --muted: 0 0% 15%;
   --muted-foreground: 0 0% 70%;
-  --accent: 0 0% 27%;
+  --accent: 0 0% 16%;
   --accent-foreground: 0 0% 98%;
   --destructive: 0 63% 70%;
   --destructive-foreground: 0 0% 98%;
   --border: 0 0% 100% / 0.1;
   --input: 0 0% 100% / 0.15;
-  --ring: 0 0% 55%;
+  --ring: 153 60% 53%;
 }
 
 @layer base {
@@ -55,7 +55,7 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: var(--font-geist-sans), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
   
@@ -64,3 +64,5 @@
     border-color: hsl(var(--border));
   }
 }
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }

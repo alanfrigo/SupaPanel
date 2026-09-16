@@ -1,0 +1,50 @@
+# Dokploy: add this repository as a Docker Compose service, then set these
+# variables in Environment and add a domain for service panel, port 3000.
+services:
+  panel:
+    build: .
+    restart: unless-stopped
+    environment:
+      SUPAPANEL_MODE: production
+      PROXY_MODE: dokploy
+      PROXY_NETWORK: ${PROXY_NETWORK:-dokploy-network}
+      PROXY_ENTRYPOINT: ${PROXY_ENTRYPOINT:-websecure}
+      PROXY_CERT_RESOLVER: ${PROXY_CERT_RESOLVER:-letsencrypt}
+      DATA_PATH: ${DATA_PATH:-/etc/supapanel}
+      DATABASE_URL: postgresql://supapanel:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD to a random alphanumeric password}@postgres:5432/supapanel
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?Set a random NEXTAUTH_SECRET}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:?Set the public HTTPS panel URL}
+      SUPABASE_CORE_REF: ${SUPABASE_CORE_REF:-9e225a279b33e4e6e1452e573a40a6a25aa2cb2f}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Must be identical on host and container: sibling containers use host paths.
+      - ${DATA_PATH:-/etc/supapanel}:${DATA_PATH:-/etc/supapanel}
+    expose:
+      - '3000'
+    networks:
+      - default
+      - proxy
+    depends_on:
+      postgres:
+        condition: service_healthy
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: supapanel
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_DB: supapanel
+    volumes:
+      - panel-database:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U supapanel -d supapanel']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+volumes:
+  panel-database:
+networks:
+  default: {}
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK:-dokploy-network}

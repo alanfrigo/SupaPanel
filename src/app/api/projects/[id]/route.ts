@@ -1,3 +1,4 @@
+import { prisma } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
 import { validateSession } from '@/lib/auth'
 import { deleteProject } from '@/lib/project'
@@ -28,6 +29,8 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
       )
     }
 
+    if (!await prisma.project.findFirst({ where: { id, ownerId: session.user.id } })) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+
     const result = await deleteProject(id)
 
     if (!result.success) {
@@ -45,4 +48,12 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
       { status: 500 }
     )
   }
+}
+export async function GET(request: NextRequest, { params }: RouteContext) {
+  const session = await validateSession(request.cookies.get('session')?.value || '')
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { id } = await params
+  const project = await prisma.project.findFirst({ where: { id, ownerId: session.user.id } })
+  if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+  return NextResponse.json({ project, proxyMode: process.env.PROXY_MODE || 'standalone' })
 }

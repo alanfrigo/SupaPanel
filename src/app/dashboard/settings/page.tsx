@@ -10,6 +10,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 export default function SettingsPage() {
+    const [managedExternally, setManagedExternally] = useState(false)
+    const [panelUrl, setPanelUrl] = useState('')
     const [domain, setDomain] = useState('')
     const [domainVerified, setDomainVerified] = useState(false)
     const [loading, setLoading] = useState(false)
@@ -25,6 +27,8 @@ export default function SettingsPage() {
                 const response = await fetch('/api/settings/panel-domain')
                 if (response.ok) {
                     const data = await response.json()
+                    setManagedExternally(data.managedExternally === true)
+                    setPanelUrl(data.panelUrl || '')
                     if (data.domain) {
                         setDomain(data.domain)
                         setDomainVerified(data.verified)
@@ -108,6 +112,8 @@ export default function SettingsPage() {
             </div>
         )
     }
+
+    if (managedExternally) return <main className="mx-auto max-w-3xl px-5 py-12"><Link href="/dashboard" className="text-sm text-muted-foreground hover:text-primary">← Voltar às instâncias</Link><h1 className="mb-2 mt-8 text-3xl font-semibold tracking-tight">Configurações</h1><p className="mb-8 text-muted-foreground">Seu painel está integrado ao Dokploy.</p><Card><CardHeader><CardTitle>Domínio e HTTPS</CardTitle><CardDescription>Gerenciados pelo proxy do Dokploy.</CardDescription></CardHeader><CardContent className="space-y-4 text-sm"><p>No Dokploy, abra este serviço Compose → Domains. Configure o domínio no serviço <code>panel</code>, porta <code>3000</code>, e habilite HTTPS.</p><p className="text-muted-foreground">URL configurada: <span className="text-foreground">{panelUrl}</span></p><p className="text-muted-foreground">Os domínios de cada instância Supabase são configurados diretamente na página da instância.</p></CardContent></Card></main>
 
     return (
         <div className="min-h-screen bg-background">

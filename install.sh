@@ -282,13 +282,12 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
-      - DATA_PATH=/data
+      - DATA_PATH=${DATA_PATH}
       - SUPABASE_CORE_REPO_URL=${SUPABASE_CORE_REPO_URL}
       - APP_NAME=${APP_NAME:-SupaPanel}
       - APP_URL=${APP_URL:-http://localhost:3000}
     volumes:
-      - ${DATA_PATH}/core:/data/core
-      - ${DATA_PATH}/projects:/data/projects
+      - ${DATA_PATH}:${DATA_PATH}
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - supapanel-network

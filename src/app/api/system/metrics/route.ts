@@ -37,7 +37,7 @@ async function getCpuUsage(): Promise<{ usage: number; cores: number }> {
     try {
         // Cross-platform CPU usage calculation
         if (process.platform === 'linux' || process.platform === 'darwin') {
-            const { stdout } = await execAsync("top -l 1 -n 0 | grep 'CPU usage' || mpstat 1 1 | tail -1 | awk '{print 100 - $NF}'")
+            const { stdout } = await execAsync("top -l 1 -n 0 | grep 'CPU usage' || mpstat 1 1 | tail -1 | awk '{print $NF}'")
 
             // macOS format: CPU usage: X% user, Y% sys, Z% idle
             const match = stdout.match(/(\d+\.?\d*)% idle/) || stdout.match(/^(\d+\.?\d*)/)
@@ -47,27 +47,31 @@ async function getCpuUsage(): Promise<{ usage: number; cores: number }> {
             }
         }
 
-        // Fallback: calculate from os module (less accurate but always works)
-        const cpus = os.cpus()
-        let totalIdle = 0
-        let totalTick = 0
-
-        for (const cpu of cpus) {
-            for (const type in cpu.times) {
-                totalTick += cpu.times[type as keyof typeof cpu.times]
-            }
-            totalIdle += cpu.times.idle
-        }
-
-        const idle = totalIdle / cpus.length
-        const total = totalTick / cpus.length
-        const usage = Math.round(100 - (idle / total) * 100)
-
-        return { usage: Math.max(0, Math.min(100, usage)), cores }
     } catch {
-        // Return a simulated value if we can't get real data
-        return { usage: Math.floor(Math.random() * 30) + 10, cores }
+        // command failed: use the os module below instead of inventing a value
     }
+
+    return cpuUsageFromOs(cores)
+}
+
+// Fallback: calculate from os module (average since boot, less accurate but real)
+function cpuUsageFromOs(cores: number): { usage: number; cores: number } {
+    const cpus = os.cpus()
+    let totalIdle = 0
+    let totalTick = 0
+
+    for (const cpu of cpus) {
+        for (const type in cpu.times) {
+            totalTick += cpu.times[type as keyof typeof cpu.times]
+        }
+        totalIdle += cpu.times.idle
+    }
+
+    const idle = totalIdle / cpus.length
+    const total = totalTick / cpus.length
+    const usage = Math.round(100 - (idle / total) * 100)
+
+    return { usage: Math.max(0, Math.min(100, usage)), cores }
 }
 
 // Get memory usage

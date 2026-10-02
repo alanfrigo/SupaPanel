@@ -105,6 +105,8 @@ Use o hostname central em modo **DNS only**, apontando diretamente ao servidor, 
 
 Na instância, informe `api.cliente.com` e `studio.cliente.com`. O painel mostra os registros DNS e permite copiar o destino. Crie esses registros no provedor DNS e clique em **Salvar e implantar**. O Traefik identifica o domínio solicitado e encaminha para a instância correta; o CNAME sozinho não configura o roteamento nem os certificados.
 
+Subdomínios automáticos: defina `PANEL_BASE_DOMAIN=supa.seudominio.com` e crie um registro curinga `*.supa.seudominio.com` apontando para o servidor. Cada nova instância recebe `api-<slug>.supa.seudominio.com` (API) e `<slug>.supa.seudominio.com` (Studio) já na criação; basta implantar. Sem a variável, nada muda e os domínios continuam manuais.
+
 Se o IP do servidor mudar, atualize apenas o A/AAAA do hostname central. Se mudar o hostname central, os CNAMEs existentes precisam ser atualizados. Use subdomínios: ALIAS/ANAME no domínio raiz depende do provedor. Não crie CNAME apontando para si mesmo nem registros A/AAAA conflitantes no mesmo nome. O painel não altera automaticamente seu provedor DNS.
 
 <img src="public/domains.png" alt="Configuração de API e Studio com registros CNAME prontos para copiar" width="100%" />

@@ -8,6 +8,7 @@ services:
       SUPAPANEL_MODE: production
       PROXY_MODE: dokploy
       INSTANCE_DNS_TARGET: ${INSTANCE_DNS_TARGET:-}
+      PANEL_BASE_DOMAIN: ${PANEL_BASE_DOMAIN:-}
       PROXY_NETWORK: ${PROXY_NETWORK:-dokploy-network}
       PROXY_ENTRYPOINT: ${PROXY_ENTRYPOINT:-websecure}
       PROXY_CERT_RESOLVER: ${PROXY_CERT_RESOLVER:-letsencrypt}

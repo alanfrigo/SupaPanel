@@ -3,7 +3,8 @@ import * as path from 'path'
 import { exec, execFile } from 'child_process'
 import { promisify } from 'util'
 import { prisma } from './db'
-import { removeProjectTraefikConfig } from './traefik'
+import { removeProjectTraefikConfig, generateProjectTraefikConfig, verifyDomainDNS } from './traefik'
+import { autoProjectDomains } from './dns-target'
 
 import { corePath, projectsPath, secret, jwt, serializeEnv, prepareCompose, supabaseRef, isDokploy } from './runtime'
 
@@ -148,6 +149,16 @@ export async function createProject(name: string, userId: string, description?: 
     createdId = project.id
     createdDir = path.join(getProjectsBasePath(), slug)
     await provisionProjectFiles(project)
+
+    const auto = autoProjectDomains(slug)
+    if (auto) {
+      const [domainVerified, studioDomainVerified] = await Promise.all([verifyDomainDNS(auto.domain), verifyDomainDNS(auto.studioDomain)])
+      const routed = await prisma.project.update({ where: { id: project.id }, data: { ...auto, domainVerified, studioDomainVerified } })
+      const env = await updateProjectEnvVars(project.id, { API_EXTERNAL_URL: `https://${auto.domain}/auth/v1`, SUPABASE_PUBLIC_URL: `https://${auto.domain}` })
+      if (!env.success) throw new Error(env.error)
+      await generateProjectTraefikConfig({ projectSlug: slug, ...auto, kongPort: 8000, studioPort: 8000 })
+      return { success: true, project: routed }
+    }
 
     return { success: true, project }
   } catch (error) {

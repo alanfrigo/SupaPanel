@@ -286,6 +286,7 @@ services:
       - SUPABASE_CORE_REPO_URL=${SUPABASE_CORE_REPO_URL}
       - APP_NAME=${APP_NAME:-SupaPanel}
       - APP_URL=${APP_URL:-http://localhost:3000}
+      - PANEL_BASE_DOMAIN=${PANEL_BASE_DOMAIN:-}
     volumes:
       - ${DATA_PATH}:${DATA_PATH}
       - /var/run/docker.sock:/var/run/docker.sock

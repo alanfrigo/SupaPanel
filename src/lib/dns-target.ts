@@ -21,3 +21,17 @@ export async function getDnsTarget() {
   const value = (saved?.value || fallback).toLowerCase();
   return validDnsTarget(value) ? value : null;
 }
+// With a wildcard record (*.base) pointing at the proxy, new instances get
+// api-<slug>.<base> and <slug>.<base> without manual DNS setup.
+export function autoProjectDomains(
+  slug: string,
+  baseDomain = process.env.PANEL_BASE_DOMAIN,
+) {
+  const base = baseDomain?.trim().toLowerCase();
+  if (!base) return null;
+  const domain = `api-${slug}.${base}`;
+  const studioDomain = `${slug}.${base}`;
+  return validDnsTarget(domain) && validDnsTarget(studioDomain)
+    ? { domain, studioDomain }
+    : null;
+}
